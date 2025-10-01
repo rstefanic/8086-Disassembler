@@ -45,6 +45,27 @@ const Register = enum {
             };
         }
     }
+
+    pub fn emit(self: Register) *const [2:0]u8 {
+        return switch(self) {
+            .AL => "al",
+            .CL => "cl",
+            .DL => "dl",
+            .BL => "bl",
+            .AH => "ah",
+            .CH => "ch",
+            .DH => "dh",
+            .BH => "bh",
+            .AX => "ax",
+            .CX => "cx",
+            .DX => "dx",
+            .BX => "bx",
+            .SP => "sp",
+            .BP => "bp",
+            .SI => "si",
+            .DI => "di"
+        };
+    }
 };
 
 const Code = struct {
@@ -79,7 +100,7 @@ const Code = struct {
                 if (mode_reg_rm.mode == Mode.RegisterMode) {
                     const operand_one = Register.make(mode_reg_rm.reg, w_flag);
                     const operand_two = Register.make(mode_reg_rm.rm, w_flag);
-                    try stdout.print("mov {any}, {any}\n", .{ operand_two, operand_one  });
+                    try stdout.print("mov {s}, {s}\n", .{ operand_two.emit(), operand_one.emit() });
                 } else {
                     return CodeError.NotYetImplemented;
                 }
