@@ -47,7 +47,7 @@ const Register = enum {
     }
 
     pub fn emit(self: Register) *const [2:0]u8 {
-        return switch(self) {
+        return switch (self) {
             .AL => "al",
             .CL => "cl",
             .DL => "dl",
@@ -63,7 +63,7 @@ const Register = enum {
             .SP => "sp",
             .BP => "bp",
             .SI => "si",
-            .DI => "di"
+            .DI => "di",
         };
     }
 };
