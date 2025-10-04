@@ -93,7 +93,22 @@ const Code = struct {
         while (!self.eof()) {
             const byte = try self.next();
 
-            if (byte & 0b10001000 == 0b10001000) {
+            if ((byte & 0b10110000) == 0b10110000) {
+                // Immediate to register
+                const w_flag: u1 = if ((byte & 0b00001000) > 0) 0b1 else 0b0;
+                const register_encoding: u3 = @truncate(byte & 0b00000111);
+                const reg = Register.make(register_encoding, w_flag);
+                if (w_flag == 0b1) {
+                    const data_lo = try self.next();
+                    const data_hi: u16 = try self.next() ;
+                    const immediate: u16 = (data_hi << 8) | data_lo;
+                    try stdout.print("mov {s}, {d}\n", .{ reg.emit(), immediate });
+                } else {
+                    const data = try self.next();
+                    try stdout.print("mov {s}, {d}\n", .{ reg.emit(), data });
+                }
+            } else if ((byte & 0b10001000) == 0b10001000) {
+                // Register/memory to/from register
                 const w_flag: u1 = if ((byte & 0b00000001) > 0) 0b1 else 0b0;
                 const mode_reg_rm_byte = try self.next();
                 const mode_reg_rm: ModeRegRm = @bitCast(mode_reg_rm_byte);
