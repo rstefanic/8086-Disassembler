@@ -20,19 +20,8 @@ const Register = enum {
     SI,
     DI,
 
-    pub fn make(reg: u3, w: u1) Register {
-        if (w == 0) {
-            return switch (reg) {
-                0b000 => Register.AL,
-                0b001 => Register.CL,
-                0b010 => Register.DL,
-                0b011 => Register.BL,
-                0b100 => Register.AH,
-                0b101 => Register.CH,
-                0b110 => Register.DH,
-                0b111 => Register.BH,
-            };
-        } else {
+    pub fn make(reg: u3, w: bool) Register {
+        if (w) {
             return switch (reg) {
                 0b000 => Register.AX,
                 0b001 => Register.CX,
@@ -42,6 +31,17 @@ const Register = enum {
                 0b101 => Register.BP,
                 0b110 => Register.SI,
                 0b111 => Register.DI,
+            };
+        } else {
+            return switch (reg) {
+                0b000 => Register.AL,
+                0b001 => Register.CL,
+                0b010 => Register.DL,
+                0b011 => Register.BL,
+                0b100 => Register.AH,
+                0b101 => Register.CH,
+                0b110 => Register.DH,
+                0b111 => Register.BH,
             };
         }
     }
@@ -108,10 +108,10 @@ const Code = struct {
 
             if ((byte & 0b10110000) == 0b10110000) {
                 // Immediate to register
-                const w_flag: u1 = if ((byte & 0b00001000) > 0) 0b1 else 0b0;
+                const w_flag = (byte & 0b00001000) > 0;
                 const register_encoding: u3 = @truncate(byte & 0b00000111);
                 const reg = Register.make(register_encoding, w_flag);
-                if (w_flag == 0b1) {
+                if (w_flag) {
                     const data_lo = try self.next();
                     const data_hi: u16 = try self.next();
                     const immediate: u16 = (data_hi << 8) | data_lo;
@@ -122,8 +122,8 @@ const Code = struct {
                 }
             } else if ((byte & 0b10001000) == 0b10001000) {
                 // Register/memory to/from register
-                const d_flag: u1 = if ((byte & 0b00000010) > 0) 0b1 else 0b0;
-                const w_flag: u1 = if ((byte & 0b00000001) > 0) 0b1 else 0b0;
+                const d_flag = (byte & 0b00000010) > 0;
+                const w_flag = (byte & 0b00000001) > 0;
                 const mode_reg_rm_byte = try self.next();
                 const mode_reg_rm: ModeRegRm = @bitCast(mode_reg_rm_byte);
 
@@ -136,7 +136,7 @@ const Code = struct {
                     },
                     Mode.MemoryNoDisplacement => {
                         const register = Register.make(mode_reg_rm.reg, w_flag).emit();
-                        if (d_flag == 0b1) {
+                        if (d_flag) {
                             try stdout.print("{s}, [", .{register});
                             try writeEffectiveAddress(stdout, mode_reg_rm.rm);
                             try stdout.print("]\n", .{});
@@ -149,7 +149,7 @@ const Code = struct {
                     Mode.Memory8BitDisplacement => {
                         const displacement = try self.next();
                         const register = Register.make(mode_reg_rm.reg, w_flag).emit();
-                        if (d_flag == 0b1) {
+                        if (d_flag) {
                             try stdout.print("{s}, [", .{register});
                             try writeEffectiveAddress(stdout, mode_reg_rm.rm);
                             try stdout.print(" + {d}]\n", .{displacement});
@@ -164,7 +164,7 @@ const Code = struct {
                         const byte_hi: u16 = try self.next();
                         const displacement = (byte_hi << 8) | byte_lo;
                         const register = Register.make(mode_reg_rm.reg, w_flag).emit();
-                        if (d_flag == 0b1) {
+                        if (d_flag) {
                             try stdout.print("{s}, [", .{register});
                             try writeEffectiveAddress(stdout, mode_reg_rm.rm);
                             try stdout.print(" + {d}]\n", .{displacement});
