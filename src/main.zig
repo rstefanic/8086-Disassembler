@@ -68,15 +68,28 @@ const Register = enum {
     }
 };
 
+fn writeEffectiveAddress(stdout: *std.Io.Writer, rm: u3) !void {
+    switch (rm) {
+        0b000 => try stdout.print("bx + si", .{}),
+        0b001 => try stdout.print("bx + di", .{}),
+        0b010 => try stdout.print("bp + si", .{}),
+        0b011 => try stdout.print("bp + di", .{}),
+        0b100 => try stdout.print("si", .{}),
+        0b101 => try stdout.print("di", .{}),
+        0b110 => try stdout.print("bp", .{}),
+        0b111 => try stdout.print("bx", .{}),
+    }
+}
+
 const Code = struct {
     data: []u8,
     position: usize = 0,
 
     const Mode = enum(u2) {
-        MemoryModeNoDisplacement = 0b00,
-        MemoryMode8BitDisplacement = 0b01,
-        MemoryMode16BitDisplacement = 0b10,
-        RegisterMode = 0b11,
+        MemoryNoDisplacement = 0b00,
+        Memory8BitDisplacement = 0b01,
+        Memory16BitDisplacement = 0b10,
+        Register = 0b11,
     };
 
     const ModeRegRm = packed struct {
@@ -100,7 +113,7 @@ const Code = struct {
                 const reg = Register.make(register_encoding, w_flag);
                 if (w_flag == 0b1) {
                     const data_lo = try self.next();
-                    const data_hi: u16 = try self.next() ;
+                    const data_hi: u16 = try self.next();
                     const immediate: u16 = (data_hi << 8) | data_lo;
                     try stdout.print("mov {s}, {d}\n", .{ reg.emit(), immediate });
                 } else {
@@ -109,15 +122,58 @@ const Code = struct {
                 }
             } else if ((byte & 0b10001000) == 0b10001000) {
                 // Register/memory to/from register
+                const d_flag: u1 = if ((byte & 0b00000010) > 0) 0b1 else 0b0;
                 const w_flag: u1 = if ((byte & 0b00000001) > 0) 0b1 else 0b0;
                 const mode_reg_rm_byte = try self.next();
                 const mode_reg_rm: ModeRegRm = @bitCast(mode_reg_rm_byte);
-                if (mode_reg_rm.mode == Mode.RegisterMode) {
-                    const operand_one = Register.make(mode_reg_rm.reg, w_flag);
-                    const operand_two = Register.make(mode_reg_rm.rm, w_flag);
-                    try stdout.print("mov {s}, {s}\n", .{ operand_two.emit(), operand_one.emit() });
-                } else {
-                    return CodeError.NotYetImplemented;
+
+                try stdout.print("mov ", .{});
+                switch (mode_reg_rm.mode) {
+                    Mode.Register => {
+                        const operand_one = Register.make(mode_reg_rm.reg, w_flag);
+                        const operand_two = Register.make(mode_reg_rm.rm, w_flag);
+                        try stdout.print("{s}, {s}\n", .{ operand_two.emit(), operand_one.emit() });
+                    },
+                    Mode.MemoryNoDisplacement => {
+                        const register = Register.make(mode_reg_rm.reg, w_flag).emit();
+                        if (d_flag == 0b1) {
+                            try stdout.print("{s}, [", .{register});
+                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                            try stdout.print("]\n", .{});
+                        } else {
+                            try stdout.print("[", .{});
+                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                            try stdout.print("], {s}\n", .{register});
+                        }
+                    },
+                    Mode.Memory8BitDisplacement => {
+                        const displacement = try self.next();
+                        const register = Register.make(mode_reg_rm.reg, w_flag).emit();
+                        if (d_flag == 0b1) {
+                            try stdout.print("{s}, [", .{register});
+                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                            try stdout.print(" + {d}]\n", .{displacement});
+                        } else {
+                            try stdout.print("[", .{});
+                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                            try stdout.print(" + {d}], {s}\n", .{ displacement, register });
+                        }
+                    },
+                    Mode.Memory16BitDisplacement => {
+                        const byte_lo = try self.next();
+                        const byte_hi: u16 = try self.next();
+                        const displacement = (byte_hi << 8) | byte_lo;
+                        const register = Register.make(mode_reg_rm.reg, w_flag).emit();
+                        if (d_flag == 0b1) {
+                            try stdout.print("{s}, [", .{register});
+                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                            try stdout.print(" + {d}]\n", .{displacement});
+                        } else {
+                            try stdout.print("[", .{});
+                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                            try stdout.print(" + {d}], {s}\n", .{ displacement, register });
+                        }
+                    },
                 }
             } else {
                 return CodeError.NotYetImplemented;
