@@ -120,6 +120,26 @@ const Code = struct {
                     const data = try self.next();
                     try stdout.print("mov {s}, {d}\n", .{ reg.emit(), data });
                 }
+            } else if ((byte & 0b10100010) == 0b10100010) {
+                // Accumulator to memory
+                const w_flag = (byte & 0b00000001) > 0;
+                const byte_lo = try self.next();
+                const byte_hi: u16 = try self.next();
+                const addr = (byte_hi << 8) | byte_lo;
+
+                // If we're only moving 8 bits, move into AL
+                const register = if(w_flag) Register.AX else Register.AL;
+                try stdout.print("mov [{d}], {s}\n", .{addr, register.emit()});
+            } else if ((byte & 0b10100000) == 0b10100000) {
+                // Memory to accumulator
+                const w_flag = (byte & 0b00000001) > 0;
+                const byte_lo = try self.next();
+                const byte_hi: u16 = try self.next();
+                const addr = (byte_hi << 8) | byte_lo;
+
+                // If we're only moving 8 bits, move into AL
+                const register = if(w_flag) Register.AX else Register.AL;
+                try stdout.print("mov {s}, [{d}]\n", .{register.emit(), addr});
             } else if ((byte & 0b10001000) == 0b10001000) {
                 // Register/memory to/from register
                 const d_flag = (byte & 0b00000010) > 0;
