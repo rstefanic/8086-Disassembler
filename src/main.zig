@@ -156,14 +156,23 @@ const Code = struct {
                     },
                     Mode.MemoryNoDisplacement => {
                         const register = Register.make(mode_reg_rm.reg, w_flag).emit();
-                        if (d_flag) {
-                            try stdout.print("{s}, [", .{register});
-                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
-                            try stdout.print("]\n", .{});
+                        // Handle the special case when there IS a displacement
+                        // when the MODE is set to "No Displacement".
+                        if (mode_reg_rm.rm == 0b110) {
+                            const byte_lo = try self.next();
+                            const byte_hi: u16 = try self.next();
+                            const addr = (byte_hi << 8) | byte_lo;
+                            try stdout.print("{s}, [{d}]\n", .{ register, addr });
                         } else {
-                            try stdout.print("[", .{});
-                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
-                            try stdout.print("], {s}\n", .{register});
+                            if (d_flag) {
+                                try stdout.print("{s}, [", .{register});
+                                try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                                try stdout.print("]\n", .{});
+                            } else {
+                                try stdout.print("[", .{});
+                                try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                                try stdout.print("], {s}\n", .{register});
+                            }
                         }
                     },
                     Mode.Memory8BitDisplacement => {
