@@ -98,7 +98,7 @@ const Code = struct {
         mode: Mode,
     };
 
-    const CodeError = error{ EOF, NotYetImplemented };
+    const CodeError = error{ EOF, NotYetImplemented, InvalidInstruction };
 
     pub fn disassemble(self: *Code, stdout: *std.Io.Writer) !void {
         try stdout.print("bits 16\n", .{});
@@ -106,7 +106,88 @@ const Code = struct {
         while (!self.eof()) {
             const byte = try self.next();
 
-            if ((byte & 0b10110000) == 0b10110000) {
+            if ((byte & 0b11000110) == 0b11000110) {
+                // Immediate to register/memory
+                const w_flag = (byte & 0b00000001) > 0;
+                const mode_reg_rm_byte = try self.next();
+                const mode_reg_rm: ModeRegRm = @bitCast(mode_reg_rm_byte);
+
+                try stdout.print("mov ", .{});
+                switch (mode_reg_rm.mode) {
+                    Mode.MemoryNoDisplacement => {
+                        if (w_flag) {
+                            const byte_lo = try self.next();
+                            const byte_hi: u16 = try self.next();
+                            const immediate = (byte_hi << 8) | byte_lo;
+                            try stdout.print("[", .{});
+                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                            try stdout.print("], word {d}\n", .{immediate});
+                        } else {
+                            const immediate = try self.next();
+                            try stdout.print("[", .{});
+                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                            try stdout.print("], byte {d}\n", .{immediate});
+                        }
+                    },
+                    Mode.Memory8BitDisplacement => {
+                        // 8 bit displacement allows for the displacement to be
+                        // signed. It does this by performing sign extension
+                        // on the byte and using that as the displacement value.
+                        const byte_lo = try self.next();
+                        const msb_set = (0b1000_0000 & byte_lo) == 0b1000_0000;
+                        const byte_hi: u16 =
+                            if (msb_set)
+                                0b1111_1111_0000_0000
+                            else
+                                0b0000_0000_0000_0000;
+                        const displacement: i16 = @bitCast(byte_hi | byte_lo);
+                        const op: u8 = if (displacement >= 0) '+' else '-';
+
+                        // Read immediate value
+                        const immediate = immediate: {
+                            const data_lo = try self.next();
+                            if (!w_flag) {
+                                break :immediate data_lo;
+                            }
+
+                            const data_hi: u16 = try self.next();
+                            break :immediate (data_hi << 8) | data_lo;
+                        };
+                        const size_keyword: *const [4:0]u8 = if (w_flag) "word" else "byte";
+
+                        try stdout.print("[", .{});
+                        try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                        try stdout.print(" {c} {d}], {s} {d}\n", .{ op, @abs(displacement), size_keyword, immediate });
+                    },
+                    Mode.Memory16BitDisplacement => {
+                        // Read two bytes for the displacement value
+                        const byte_lo = try self.next();
+                        const byte_hi: u16 = try self.next();
+                        const displacement: i16 = @bitCast((byte_hi << 8) | byte_lo);
+                        const op: u8 = if (displacement >= 0) '+' else '-';
+
+                        // Read immediate value
+                        const immediate = immediate: {
+                            const data_lo = try self.next();
+                            if (!w_flag) {
+                                break :immediate data_lo;
+                            }
+
+                            const data_hi: u16 = try self.next();
+                            break :immediate (data_hi << 8) | data_lo;
+                        };
+                        const size_keyword: *const [4:0]u8 = if (w_flag) "word" else "byte";
+
+                        try stdout.print("[", .{});
+                        try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                        try stdout.print(" {c} {d}], {s} {d}\n", .{ op, @abs(displacement), size_keyword, immediate });
+                    },
+                    else => {
+                        std.debug.print("Invalid mode for  \"Immediate to register/memory\" instruction. mode: {any}\n", .{mode_reg_rm.mode});
+                        return CodeError.InvalidInstruction;
+                    },
+                }
+            } else if ((byte & 0b10110000) == 0b10110000) {
                 // Immediate to register
                 const w_flag = (byte & 0b00001000) > 0;
                 const register_encoding: u3 = @truncate(byte & 0b00000111);
@@ -219,6 +300,7 @@ const Code = struct {
                     },
                 }
             } else {
+                std.debug.print("Missing Implementation: {b}\n", .{byte});
                 return CodeError.NotYetImplemented;
             }
         }
