@@ -176,31 +176,45 @@ const Code = struct {
                         }
                     },
                     Mode.Memory8BitDisplacement => {
-                        const displacement = try self.next();
+                        // 8 bit displacement allows for the displacement to be
+                        // signed. It does this by performing sign extension
+                        // on the byte and using that as the displacement value.
+                        const byte_lo = try self.next();
+                        const msb_set = (0b1000_0000 & byte_lo) == 0b1000_0000;
+                        const byte_hi: u16 =
+                            if (msb_set)
+                                0b1111_1111_0000_0000
+                            else
+                                0b0000_0000_0000_0000;
+                        const displacement: i16 = @bitCast(byte_hi | byte_lo);
+                        const op: u8 = if (displacement >= 0) '+' else '-';
                         const register = Register.make(mode_reg_rm.reg, w_flag).emit();
+
                         if (d_flag) {
                             try stdout.print("{s}, [", .{register});
                             try writeEffectiveAddress(stdout, mode_reg_rm.rm);
-                            try stdout.print(" + {d}]\n", .{displacement});
+                            try stdout.print(" {c} {d}]\n", .{ op, @abs(displacement) });
                         } else {
                             try stdout.print("[", .{});
                             try writeEffectiveAddress(stdout, mode_reg_rm.rm);
-                            try stdout.print(" + {d}], {s}\n", .{ displacement, register });
+                            try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
                         }
                     },
                     Mode.Memory16BitDisplacement => {
                         const byte_lo = try self.next();
                         const byte_hi: u16 = try self.next();
-                        const displacement = (byte_hi << 8) | byte_lo;
+                        const displacement: i16 = @bitCast((byte_hi << 8) | byte_lo);
+                        const op: u8 = if (displacement >= 0) '+' else '-';
                         const register = Register.make(mode_reg_rm.reg, w_flag).emit();
+
                         if (d_flag) {
                             try stdout.print("{s}, [", .{register});
                             try writeEffectiveAddress(stdout, mode_reg_rm.rm);
-                            try stdout.print(" + {d}]\n", .{displacement});
+                            try stdout.print(" {c} {d}]\n", .{ op, @abs(displacement) });
                         } else {
                             try stdout.print("[", .{});
                             try writeEffectiveAddress(stdout, mode_reg_rm.rm);
-                            try stdout.print(" + {d}], {s}\n", .{ displacement, register });
+                            try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
                         }
                     },
                 }
