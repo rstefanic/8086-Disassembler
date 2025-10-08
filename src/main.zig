@@ -400,7 +400,7 @@ test "Match disassembled version with compiled version" {
 
         // Recompile the test file using nasm.
         const test_result_filename = "test";
-        const nasm2_cmd = [_][]const u8{ "nasm", "-o", test_result_filename, test_filename };
+        const nasm2_cmd = [_][]const u8{ "nasm", "-w-orphan-labels", "-o", test_result_filename, test_filename };
         var nasm2 = std.process.Child.init(&nasm2_cmd, std.testing.allocator);
         try nasm2.spawn();
         const nasm2_results = try nasm2.wait();
