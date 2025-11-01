@@ -27,8 +27,87 @@ pub fn disassemble(self: *Binary, stdout: *std.Io.Writer) !void {
 
     while (!self.eof()) {
         const byte = try self.next();
-
-        if ((byte & 0b11000110) == 0b11000110) {
+        if ((byte & 0b01110100) == 0b01110100) {
+            // JE/JZ
+            const displacement = try self.next();
+            try stdout.print("je {d}\n", .{ displacement });
+        } else if ((byte & 0b01111100) == 0b01111100) {
+            // JL
+            const displacement = try self.next();
+            try stdout.print("jl {d}\n", .{ displacement });
+        } else if ((byte & 0b01111110) == 0b01111110) {
+            // JLE
+            const displacement = try self.next();
+            try stdout.print("jle {d}\n", .{ displacement });
+        } else if ((byte & 0b01110010) == 0b01110010) {
+            // JB
+            const displacement = try self.next();
+            try stdout.print("jb {d}\n", .{ displacement });
+        } else if ((byte & 0b01110110) == 0b01110110) {
+            // JBE
+            const displacement = try self.next();
+            try stdout.print("jbe {d}\n", .{ displacement });
+        } else if ((byte & 0b01111010) == 0b01111010) {
+            // JP
+            const displacement = try self.next();
+            try stdout.print("jp {d}\n", .{ displacement });
+        } else if ((byte & 0b01110000) == 0b01110000) {
+            // JO
+            const displacement = try self.next();
+            try stdout.print("jo {d}\n", .{ displacement });
+        } else if ((byte & 0b01111000) == 0b01111000) {
+            // JS
+            const displacement = try self.next();
+            try stdout.print("js {d}\n", .{ displacement });
+        } else if ((byte & 0b01110101) == 0b01110101) {
+            // JNZ
+            const displacement = try self.next();
+            try stdout.print("jnz {d}\n", .{ displacement });
+        } else if ((byte & 0b01111101) == 0b01111101) {
+            // JNL
+            const displacement = try self.next();
+            try stdout.print("jnl {d}\n", .{ displacement });
+        } else if ((byte & 0b01111111) == 0b01111111) {
+            // JNLE
+            const displacement = try self.next();
+            try stdout.print("jnle {d}\n", .{ displacement });
+        } else if ((byte & 0b01110011) == 0b01110011) {
+            // JNB
+            const displacement = try self.next();
+            try stdout.print("jnb {d}\n", .{ displacement });
+        } else if ((byte & 0b01110111) == 0b01110111) {
+            // JNBE
+            const displacement = try self.next();
+            try stdout.print("jnbe {d}\n", .{ displacement });
+        } else if ((byte & 0b01111011) == 0b01111011) {
+            // JNP
+            const displacement = try self.next();
+            try stdout.print("jnp {d}\n", .{ displacement });
+        } else if ((byte & 0b01110001) == 0b01110001) {
+            // JNO
+            const displacement = try self.next();
+            try stdout.print("jno {d}\n", .{ displacement });
+        } else if ((byte & 0b01111001) == 0b01111001) {
+            // JNS
+            const displacement = try self.next();
+            try stdout.print("jns {d}\n", .{ displacement });
+        } else if ((byte & 0b11100010) == 0b11100010) {
+            // LOOP
+            const displacement = try self.next();
+            try stdout.print("loop {d}\n", .{ displacement });
+        } else if ((byte & 0b11100001) == 0b11100001) {
+            // LOOPZ
+            const displacement = try self.next();
+            try stdout.print("loopz {d}\n", .{ displacement });
+        } else if ((byte & 0b11100000) == 0b11100000) {
+            // LOOPNZ
+            const displacement = try self.next();
+            try stdout.print("loopnz {d}\n", .{ displacement });
+        } else if ((byte & 0b11100011) == 0b11100011) {
+            // JCXZ
+            const displacement = try self.next();
+            try stdout.print("jcxz {d}\n", .{ displacement });
+        } else if ((byte & 0b11000110) == 0b11000110) {
             // Immediate to register/memory
             const w_flag = (byte & 0b00000001) > 0;
             const mode_reg_rm_byte = try self.next();
