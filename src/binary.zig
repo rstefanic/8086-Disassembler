@@ -2,6 +2,7 @@ const Binary = @This();
 
 const std = @import("std");
 
+const Instructions = @import("instruction.zig");
 const Register = @import("register.zig").Register;
 
 data: []u8,
@@ -27,89 +28,131 @@ pub fn disassemble(self: *Binary, stdout: *std.Io.Writer) !void {
 
     while (!self.eof()) {
         const byte = try self.next();
-        if ((byte & 0b01110100) == 0b01110100) {
-            // JE/JZ
-            const displacement = try self.next();
-            try stdout.print("je {d}\n", .{ displacement });
-        } else if ((byte & 0b01111100) == 0b01111100) {
-            // JL
-            const displacement = try self.next();
-            try stdout.print("jl {d}\n", .{ displacement });
-        } else if ((byte & 0b01111110) == 0b01111110) {
-            // JLE
-            const displacement = try self.next();
-            try stdout.print("jle {d}\n", .{ displacement });
-        } else if ((byte & 0b01110010) == 0b01110010) {
-            // JB
-            const displacement = try self.next();
-            try stdout.print("jb {d}\n", .{ displacement });
-        } else if ((byte & 0b01110110) == 0b01110110) {
-            // JBE
-            const displacement = try self.next();
-            try stdout.print("jbe {d}\n", .{ displacement });
-        } else if ((byte & 0b01111010) == 0b01111010) {
-            // JP
-            const displacement = try self.next();
-            try stdout.print("jp {d}\n", .{ displacement });
-        } else if ((byte & 0b01110000) == 0b01110000) {
-            // JO
-            const displacement = try self.next();
-            try stdout.print("jo {d}\n", .{ displacement });
-        } else if ((byte & 0b01111000) == 0b01111000) {
-            // JS
-            const displacement = try self.next();
-            try stdout.print("js {d}\n", .{ displacement });
-        } else if ((byte & 0b01110101) == 0b01110101) {
-            // JNZ
-            const displacement = try self.next();
-            try stdout.print("jnz {d}\n", .{ displacement });
-        } else if ((byte & 0b01111101) == 0b01111101) {
-            // JNL
-            const displacement = try self.next();
-            try stdout.print("jnl {d}\n", .{ displacement });
-        } else if ((byte & 0b01111111) == 0b01111111) {
-            // JNLE
-            const displacement = try self.next();
-            try stdout.print("jnle {d}\n", .{ displacement });
-        } else if ((byte & 0b01110011) == 0b01110011) {
-            // JNB
-            const displacement = try self.next();
-            try stdout.print("jnb {d}\n", .{ displacement });
-        } else if ((byte & 0b01110111) == 0b01110111) {
-            // JNBE
-            const displacement = try self.next();
-            try stdout.print("jnbe {d}\n", .{ displacement });
-        } else if ((byte & 0b01111011) == 0b01111011) {
-            // JNP
-            const displacement = try self.next();
-            try stdout.print("jnp {d}\n", .{ displacement });
-        } else if ((byte & 0b01110001) == 0b01110001) {
-            // JNO
-            const displacement = try self.next();
-            try stdout.print("jno {d}\n", .{ displacement });
-        } else if ((byte & 0b01111001) == 0b01111001) {
-            // JNS
-            const displacement = try self.next();
-            try stdout.print("jns {d}\n", .{ displacement });
-        } else if ((byte & 0b11100010) == 0b11100010) {
-            // LOOP
-            const displacement = try self.next();
-            try stdout.print("loop {d}\n", .{ displacement });
-        } else if ((byte & 0b11100001) == 0b11100001) {
-            // LOOPZ
-            const displacement = try self.next();
-            try stdout.print("loopz {d}\n", .{ displacement });
-        } else if ((byte & 0b11100000) == 0b11100000) {
-            // LOOPNZ
-            const displacement = try self.next();
-            try stdout.print("loopnz {d}\n", .{ displacement });
-        } else if ((byte & 0b11100011) == 0b11100011) {
-            // JCXZ
-            const displacement = try self.next();
-            try stdout.print("jcxz {d}\n", .{ displacement });
-        } else if ((byte & 0b11000110) == 0b11000110) {
-            // Immediate to register/memory
-            const w_flag = (byte & 0b00000001) > 0;
+        const instruction = Instructions.Instruction.make(byte);
+        switch (instruction) {
+            .mov => |*mov| try self.emitMov(mov.*, stdout),
+        }
+    }
+}
+
+fn eof(self: *Binary) bool {
+    return self.position >= self.data.len;
+}
+
+fn peek(self: *Binary) DisassembleError!u8 {
+    const next_pos = self.position + 1;
+    if (next_pos >= self.data.len) {
+        return DisassembleError.EOF;
+    }
+
+    return self.data[next_pos];
+}
+
+fn next(self: *Binary) DisassembleError!u8 {
+    if (self.eof()) {
+        return DisassembleError.EOF;
+    }
+
+    const byte = self.data[self.position];
+    self.position += 1;
+    return byte;
+}
+
+fn writeEffectiveAddress(stdout: *std.Io.Writer, rm: u3) !void {
+    switch (rm) {
+        0b000 => try stdout.print("bx + si", .{}),
+        0b001 => try stdout.print("bx + di", .{}),
+        0b010 => try stdout.print("bp + si", .{}),
+        0b011 => try stdout.print("bp + di", .{}),
+        0b100 => try stdout.print("si", .{}),
+        0b101 => try stdout.print("di", .{}),
+        0b110 => try stdout.print("bp", .{}),
+        0b111 => try stdout.print("bx", .{}),
+    }
+}
+
+fn emitMov(self: *Binary, mov: Instructions.Mov, stdout: *std.Io.Writer) !void {
+    switch (mov) {
+        .RegMemToFromReg => |*m| {
+            const d_flag = m.*.d;
+            const w_flag = m.*.w;
+            const mode_reg_rm_byte = try self.next();
+            const mode_reg_rm: ModeRegRm = @bitCast(mode_reg_rm_byte);
+
+            try stdout.print("mov ", .{});
+            switch (mode_reg_rm.mode) {
+                Mode.Register => {
+                    const operand_one = Register.make(mode_reg_rm.reg, w_flag);
+                    const operand_two = Register.make(mode_reg_rm.rm, w_flag);
+                    try stdout.print("{s}, {s}\n", .{ operand_two.emit(), operand_one.emit() });
+                },
+                Mode.MemoryNoDisplacement => {
+                    const register = Register.make(mode_reg_rm.reg, w_flag).emit();
+                    // Handle the special case when there IS a displacement
+                    // when the MODE is set to "No Displacement".
+                    if (mode_reg_rm.rm == 0b110) {
+                        const byte_lo = try self.next();
+                        const byte_hi: u16 = try self.next();
+                        const addr = (byte_hi << 8) | byte_lo;
+                        try stdout.print("{s}, [{d}]\n", .{ register, addr });
+                    } else {
+                        if (d_flag) {
+                            try stdout.print("{s}, [", .{register});
+                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                            try stdout.print("]\n", .{});
+                        } else {
+                            try stdout.print("[", .{});
+                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                            try stdout.print("], {s}\n", .{register});
+                        }
+                    }
+                },
+                Mode.Memory8BitDisplacement => {
+                    // 8 bit displacement allows for the displacement to be
+                    // signed. It does this by performing sign extension
+                    // on the byte and using that as the displacement value.
+                    const byte_lo = try self.next();
+                    const msb_set = (0b1000_0000 & byte_lo) == 0b1000_0000;
+                    const byte_hi: u16 =
+                        if (msb_set)
+                            0b1111_1111_0000_0000
+                        else
+                            0b0000_0000_0000_0000;
+                    const displacement: i16 = @bitCast(byte_hi | byte_lo);
+                    const op: u8 = if (displacement >= 0) '+' else '-';
+                    const register = Register.make(mode_reg_rm.reg, w_flag).emit();
+
+                    if (d_flag) {
+                        try stdout.print("{s}, [", .{register});
+                        try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                        try stdout.print(" {c} {d}]\n", .{ op, @abs(displacement) });
+                    } else {
+                        try stdout.print("[", .{});
+                        try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                        try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
+                    }
+                },
+                Mode.Memory16BitDisplacement => {
+                    const byte_lo = try self.next();
+                    const byte_hi: u16 = try self.next();
+                    const displacement: i16 = @bitCast((byte_hi << 8) | byte_lo);
+                    const op: u8 = if (displacement >= 0) '+' else '-';
+                    const register = Register.make(mode_reg_rm.reg, w_flag).emit();
+
+                    if (d_flag) {
+                        try stdout.print("{s}, [", .{register});
+                        try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                        try stdout.print(" {c} {d}]\n", .{ op, @abs(displacement) });
+                    } else {
+                        try stdout.print("[", .{});
+                        try writeEffectiveAddress(stdout, mode_reg_rm.rm);
+                        try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
+                    }
+                },
+            }
+        },
+        .ImmToRegMem => |*m| {
+            const w_flag = m.w;
             const mode_reg_rm_byte = try self.next();
             const mode_reg_rm: ModeRegRm = @bitCast(mode_reg_rm_byte);
 
@@ -188,10 +231,10 @@ pub fn disassemble(self: *Binary, stdout: *std.Io.Writer) !void {
                     return DisassembleError.InvalidInstruction;
                 },
             }
-        } else if ((byte & 0b10110000) == 0b10110000) {
-            // Immediate to register
-            const w_flag = (byte & 0b00001000) > 0;
-            const register_encoding: u3 = @truncate(byte & 0b00000111);
+        },
+        .ImmToReg => |*m| {
+            const w_flag = m.*.w;
+            const register_encoding = m.*.reg;
             const reg = Register.make(register_encoding, w_flag);
             if (w_flag) {
                 const data_lo = try self.next();
@@ -202,9 +245,9 @@ pub fn disassemble(self: *Binary, stdout: *std.Io.Writer) !void {
                 const data = try self.next();
                 try stdout.print("mov {s}, {d}\n", .{ reg.emit(), data });
             }
-        } else if ((byte & 0b10100010) == 0b10100010) {
-            // Accumulator to memory
-            const w_flag = (byte & 0b00000001) > 0;
+        },
+        .AccToMem => |*m| {
+            const w_flag = m.*.w;
             const byte_lo = try self.next();
             const byte_hi: u16 = try self.next();
             const addr = (byte_hi << 8) | byte_lo;
@@ -212,9 +255,9 @@ pub fn disassemble(self: *Binary, stdout: *std.Io.Writer) !void {
             // If we're only moving 8 bits, move into AL
             const register = if (w_flag) Register.AX else Register.AL;
             try stdout.print("mov [{d}], {s}\n", .{ addr, register.emit() });
-        } else if ((byte & 0b10100000) == 0b10100000) {
-            // Memory to accumulator
-            const w_flag = (byte & 0b00000001) > 0;
+        },
+        .MemToAcc => |*m| {
+            const w_flag = m.*.w;
             const byte_lo = try self.next();
             const byte_hi: u16 = try self.next();
             const addr = (byte_hi << 8) | byte_lo;
@@ -222,123 +265,6 @@ pub fn disassemble(self: *Binary, stdout: *std.Io.Writer) !void {
             // If we're only moving 8 bits, move into AL
             const register = if (w_flag) Register.AX else Register.AL;
             try stdout.print("mov {s}, [{d}]\n", .{ register.emit(), addr });
-        } else if ((byte & 0b10001000) == 0b10001000) {
-            // Register/memory to/from register
-            const d_flag = (byte & 0b00000010) > 0;
-            const w_flag = (byte & 0b00000001) > 0;
-            const mode_reg_rm_byte = try self.next();
-            const mode_reg_rm: ModeRegRm = @bitCast(mode_reg_rm_byte);
-
-            try stdout.print("mov ", .{});
-            switch (mode_reg_rm.mode) {
-                Mode.Register => {
-                    const operand_one = Register.make(mode_reg_rm.reg, w_flag);
-                    const operand_two = Register.make(mode_reg_rm.rm, w_flag);
-                    try stdout.print("{s}, {s}\n", .{ operand_two.emit(), operand_one.emit() });
-                },
-                Mode.MemoryNoDisplacement => {
-                    const register = Register.make(mode_reg_rm.reg, w_flag).emit();
-                    // Handle the special case when there IS a displacement
-                    // when the MODE is set to "No Displacement".
-                    if (mode_reg_rm.rm == 0b110) {
-                        const byte_lo = try self.next();
-                        const byte_hi: u16 = try self.next();
-                        const addr = (byte_hi << 8) | byte_lo;
-                        try stdout.print("{s}, [{d}]\n", .{ register, addr });
-                    } else {
-                        if (d_flag) {
-                            try stdout.print("{s}, [", .{register});
-                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
-                            try stdout.print("]\n", .{});
-                        } else {
-                            try stdout.print("[", .{});
-                            try writeEffectiveAddress(stdout, mode_reg_rm.rm);
-                            try stdout.print("], {s}\n", .{register});
-                        }
-                    }
-                },
-                Mode.Memory8BitDisplacement => {
-                    // 8 bit displacement allows for the displacement to be
-                    // signed. It does this by performing sign extension
-                    // on the byte and using that as the displacement value.
-                    const byte_lo = try self.next();
-                    const msb_set = (0b1000_0000 & byte_lo) == 0b1000_0000;
-                    const byte_hi: u16 =
-                        if (msb_set)
-                            0b1111_1111_0000_0000
-                        else
-                            0b0000_0000_0000_0000;
-                    const displacement: i16 = @bitCast(byte_hi | byte_lo);
-                    const op: u8 = if (displacement >= 0) '+' else '-';
-                    const register = Register.make(mode_reg_rm.reg, w_flag).emit();
-
-                    if (d_flag) {
-                        try stdout.print("{s}, [", .{register});
-                        try writeEffectiveAddress(stdout, mode_reg_rm.rm);
-                        try stdout.print(" {c} {d}]\n", .{ op, @abs(displacement) });
-                    } else {
-                        try stdout.print("[", .{});
-                        try writeEffectiveAddress(stdout, mode_reg_rm.rm);
-                        try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
-                    }
-                },
-                Mode.Memory16BitDisplacement => {
-                    const byte_lo = try self.next();
-                    const byte_hi: u16 = try self.next();
-                    const displacement: i16 = @bitCast((byte_hi << 8) | byte_lo);
-                    const op: u8 = if (displacement >= 0) '+' else '-';
-                    const register = Register.make(mode_reg_rm.reg, w_flag).emit();
-
-                    if (d_flag) {
-                        try stdout.print("{s}, [", .{register});
-                        try writeEffectiveAddress(stdout, mode_reg_rm.rm);
-                        try stdout.print(" {c} {d}]\n", .{ op, @abs(displacement) });
-                    } else {
-                        try stdout.print("[", .{});
-                        try writeEffectiveAddress(stdout, mode_reg_rm.rm);
-                        try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
-                    }
-                },
-            }
-        } else {
-            std.debug.print("Missing Implementation: {b}\n", .{byte});
-            return DisassembleError.NotYetImplemented;
-        }
-    }
-}
-
-fn eof(self: *Binary) bool {
-    return self.position >= self.data.len;
-}
-
-fn peek(self: *Binary) DisassembleError!u8 {
-    const next_pos = self.position + 1;
-    if (next_pos >= self.data.len) {
-        return DisassembleError.EOF;
-    }
-
-    return self.data[next_pos];
-}
-
-fn next(self: *Binary) DisassembleError!u8 {
-    if (self.eof()) {
-        return DisassembleError.EOF;
-    }
-
-    const byte = self.data[self.position];
-    self.position += 1;
-    return byte;
-}
-
-fn writeEffectiveAddress(stdout: *std.Io.Writer, rm: u3) !void {
-    switch (rm) {
-        0b000 => try stdout.print("bx + si", .{}),
-        0b001 => try stdout.print("bx + di", .{}),
-        0b010 => try stdout.print("bp + si", .{}),
-        0b011 => try stdout.print("bp + di", .{}),
-        0b100 => try stdout.print("si", .{}),
-        0b101 => try stdout.print("di", .{}),
-        0b110 => try stdout.print("bp", .{}),
-        0b111 => try stdout.print("bx", .{}),
+        },
     }
 }
