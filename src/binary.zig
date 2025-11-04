@@ -29,8 +29,29 @@ pub fn disassemble(self: *Binary, stdout: *std.Io.Writer) !void {
     while (!self.eof()) {
         const byte = try self.next();
         const instruction = Instructions.Instruction.make(byte);
+
         switch (instruction) {
             .mov => |*mov| try self.emitMov(mov.*, stdout),
+            .je => try self.emitJe(stdout),
+            .jl => try self.emitJl(stdout),
+            .jle => try self.emitJle(stdout),
+            .jb => try self.emitJb(stdout),
+            .jbe => try self.emitJbe(stdout),
+            .jp => try self.emitJp(stdout),
+            .jo => try self.emitJo(stdout),
+            .js => try self.emitJs(stdout),
+            .jnz => try self.emitJnz(stdout),
+            .jnl => try self.emitJnl(stdout),
+            .jnle => try self.emitJnle(stdout),
+            .jnb => try self.emitJnb(stdout),
+            .jnbe => try self.emitJnbe(stdout),
+            .jnp => try self.emitJnp(stdout),
+            .jno => try self.emitJno(stdout),
+            .jns => try self.emitJns(stdout),
+            .loop => try self.emitLoop(stdout),
+            .loopz => try self.emitLoopz(stdout),
+            .loopnz => try self.emitLoopnz(stdout),
+            .jcxz => try self.emitJcxz(stdout),
         }
     }
 }
@@ -267,4 +288,104 @@ fn emitMov(self: *Binary, mov: Instructions.Mov, stdout: *std.Io.Writer) !void {
             try stdout.print("mov {s}, [{d}]\n", .{ register.emit(), addr });
         },
     }
+}
+
+fn emitJe(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("je {d}\n", .{displacement});
+}
+
+fn emitJl(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jl {d}\n", .{displacement});
+}
+
+fn emitJle(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jle {d}\n", .{displacement});
+}
+
+fn emitJb(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jb {d}\n", .{displacement});
+}
+
+fn emitJbe(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jbe {d}\n", .{displacement});
+}
+
+fn emitJp(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jp {d}\n", .{displacement});
+}
+
+fn emitJo(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jo {d}\n", .{displacement});
+}
+
+fn emitJs(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("js {d}\n", .{displacement});
+}
+
+fn emitJnz(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jnz {d}\n", .{displacement});
+}
+
+fn emitJnl(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jnl {d}\n", .{displacement});
+}
+
+fn emitJnle(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jnle {d}\n", .{displacement});
+}
+
+fn emitJnb(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jnb {d}\n", .{displacement});
+}
+
+fn emitJnbe(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jnbe {d}\n", .{displacement});
+}
+
+fn emitJnp(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jnp {d}\n", .{displacement});
+}
+
+fn emitJno(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jno {d}\n", .{displacement});
+}
+
+fn emitJns(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jns {d}\n", .{displacement});
+}
+
+fn emitLoop(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("loop {d}\n", .{displacement});
+}
+
+fn emitLoopz(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("loopz {d}\n", .{displacement});
+}
+
+fn emitLoopnz(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("loopnz {d}\n", .{displacement});
+}
+
+fn emitJcxz(self: *Binary, stdout: *std.Io.Writer) !void {
+    const displacement = try self.next();
+    try stdout.print("jcxz {d}\n", .{displacement});
 }
