@@ -1,0 +1,211 @@
+const Disassemble = @This();
+
+const std = @import("std");
+const Allocator = std.mem.Allocator;
+const DoublyLinkedList = std.DoublyLinkedList;
+
+const Binary = @import("binary.zig");
+const Instructions = @import("instruction.zig");
+
+const ByteType = enum {
+    Instruction,
+    ModRegRm,
+    DispLo,
+    DispHi,
+    DataLo,
+    DataHi,
+    AddrLo,
+    AddrHi,
+};
+
+const Byte = struct {
+    data: u8,
+    label_ref: ?usize,
+    type: ByteType,
+    node: DoublyLinkedList.Node,
+};
+
+allocator: Allocator,
+code: std.DoublyLinkedList,
+
+pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
+    var code: std.DoublyLinkedList = .{};
+
+    while (!binary.eof()) {
+        const byte = try binary.next();
+        const instruction = Instructions.Instruction.make(byte);
+        const instruction_byte = try tagByte(allocator, byte, .Instruction);
+        code.append(&instruction_byte.node);
+
+        switch (instruction) {
+            .mov => |mov| {
+                switch (mov) {
+                    .RegMemToFromReg => |_| {
+                        // Check out how much we'll need to read
+                        const mod_reg_rm_val: u8 = try binary.next();
+                        const mod_reg_rm: Binary.ModeRegRm = @bitCast(mod_reg_rm_val);
+                        const mod_reg_rm_byte = try tagByte(allocator, mod_reg_rm_val, .ModRegRm);
+                        code.append(&mod_reg_rm_byte.node);
+
+                        switch (mod_reg_rm.mode) {
+                            Binary.Mode.MemoryNoDisplacement => {
+                                // Handle the special case when there IS a displacement
+                                // when the MODE is set to "No Displacement".
+                                if (mod_reg_rm.rm == 0b110) {
+                                    const byte_lo_val = try binary.next();
+                                    const byte_lo = try tagByte(allocator, byte_lo_val, .DispLo);
+                                    code.append(&byte_lo.node);
+
+                                    const byte_hi_val = try binary.next();
+                                    const byte_hi = try tagByte(allocator, byte_hi_val, .DispHi);
+                                    code.append(&byte_hi.node);
+                                }
+                            },
+                            Binary.Mode.Memory8BitDisplacement => {
+                                const byte_lo_val = try binary.next();
+                                const byte_lo = try tagByte(allocator, byte_lo_val, .DispLo);
+                                code.append(&byte_lo.node);
+                            },
+                            Binary.Mode.Memory16BitDisplacement => {
+                                const byte_lo_val = try binary.next();
+                                const byte_lo = try tagByte(allocator, byte_lo_val, .DispLo);
+                                code.append(&byte_lo.node);
+
+                                const byte_hi_val = try binary.next();
+                                const byte_hi = try tagByte(allocator, byte_hi_val, .DispHi);
+                                code.append(&byte_hi.node);
+                            },
+                            Binary.Mode.Register => {
+                                // Nothing more to do
+                            },
+                        }
+                    },
+                    .ImmToRegMem => |*m| {
+                        const w_flag = m.*.w;
+                        const mod_reg_rm_val: u8 = try binary.next();
+                        const mod_reg_rm: Binary.ModeRegRm = @bitCast(mod_reg_rm_val);
+                        const mod_reg_rm_byte = try tagByte(allocator, mod_reg_rm_val, .ModRegRm);
+                        code.append(&mod_reg_rm_byte.node);
+
+                        switch (mod_reg_rm.mode) {
+                            Binary.Mode.MemoryNoDisplacement => {
+                                const data_lo_val = try binary.next();
+                                const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
+                                code.append(&data_lo.node);
+
+                                if (w_flag) {
+                                    const data_hi_val = try binary.next();
+                                    const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
+                                    code.append(&data_hi.node);
+                                }
+                            },
+                            Binary.Mode.Memory8BitDisplacement => {
+                                const disp_lo_val = try binary.next();
+                                const disp_lo = try tagByte(allocator, disp_lo_val, .DispLo);
+                                code.append(&disp_lo.node);
+
+                                const data_lo_val = try binary.next();
+                                const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
+                                code.append(&data_lo.node);
+
+                                if (w_flag) {
+                                    const data_hi_val = try binary.next();
+                                    const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
+                                    code.append(&data_hi.node);
+                                }
+                            },
+                            Binary.Mode.Memory16BitDisplacement => {
+                                const disp_lo_val = try binary.next();
+                                const disp_lo = try tagByte(allocator, disp_lo_val, .DispLo);
+                                code.append(&disp_lo.node);
+
+                                const disp_hi_val = try binary.next();
+                                const disp_hi = try tagByte(allocator, disp_hi_val, .DispHi);
+                                code.append(&disp_hi.node);
+
+                                const data_lo_val = try binary.next();
+                                const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
+                                code.append(&data_lo.node);
+
+                                if (w_flag) {
+                                    const data_hi_val = try binary.next();
+                                    const data_hi = try tagByte(allocator, data_hi_val, .DispHi);
+                                    code.append(&data_hi.node);
+                                }
+                            },
+                            else => {
+                                @panic("Invalid mode for  \"Immediate to register/memory\" instruction.");
+                            },
+                        }
+                    },
+                    // TODO: For the following 3 Mov types, see if there isn't
+                    // a nicer way way to put them together in one statement
+                    // with the capture group since they all share the w_flag.
+                    .ImmToReg => |*m| {
+                        const w_flag = m.*.w;
+                        const data_lo_val = try binary.next();
+                        const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
+                        code.append(&data_lo.node);
+
+                        if (w_flag) {
+                            const data_hi_val = try binary.next();
+                            const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
+                            code.append(&data_hi.node);
+                        }
+                    },
+                    .AccToMem => |*m| {
+                        const w_flag = m.*.w;
+                        const data_lo_val = try binary.next();
+                        const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
+                        code.append(&data_lo.node);
+
+                        if (w_flag) {
+                            const data_hi_val = try binary.next();
+                            const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
+                            code.append(&data_hi.node);
+                        }
+                    },
+                    .MemToAcc => |*m| {
+                        const w_flag = m.*.w;
+                        const data_lo_val = try binary.next();
+                        const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
+                        code.append(&data_lo.node);
+
+                        if (w_flag) {
+                            const data_hi_val = try binary.next();
+                            const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
+                            code.append(&data_hi.node);
+                        }
+                    },
+                }
+            },
+            .je, .jl, .jle, .jb, .jbe, .jp, .jo, .js, .jnz, .jnl, .jnle, .jnb, .jnbe, .jnp, .jno, .jns, .loop, .loopz, .loopnz, .jcxz => {
+                const displacement = try binary.next();
+                const diplacement_byte = try tagByte(allocator, displacement, .DispLo);
+                code.append(&diplacement_byte.node);
+            },
+        }
+    }
+
+    return Disassemble{ .allocator = allocator, .code = code };
+}
+
+pub fn deinit(self: *const Disassemble) void {
+    var node: ?*DoublyLinkedList.Node = self.code.first;
+    while (node) |n| {
+        const byte: *Byte = @fieldParentPtr("node", n);
+        node = n.next;
+        self.allocator.destroy(byte);
+    }
+}
+
+fn tagByte(allocator: Allocator, data: u8, tag: ByteType) !*Byte {
+    const byte = try allocator.create(Byte);
+    byte.* = .{
+        .data = data,
+        .label_ref = null,
+        .type = tag,
+        .node = .{},
+    };
+    return byte;
+}

@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const Binary = @import("binary.zig");
+const Disassemble = @import("disassemble.zig");
 
 const Error = error{FileNotFound};
 
@@ -26,8 +27,10 @@ pub fn main() !void {
     const content = try std.fs.cwd().readFileAlloc(allocator, filename, std.math.maxInt(usize));
     defer allocator.free(content);
 
-    var bin = Binary{ .data = content };
-    try bin.disassemble(stdout);
+    var binary = Binary{ .data = content };
+    const disassemble = try Disassemble.init(allocator, &binary);
+    try stdout.print("{any}\n", .{disassemble});
+    disassemble.deinit();
     try stdout.flush();
 }
 
