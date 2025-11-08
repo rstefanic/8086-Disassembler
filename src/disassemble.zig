@@ -18,7 +18,7 @@ const ByteType = enum {
     AddrHi,
 };
 
-const Byte = struct {
+pub const Byte = struct {
     data: u8,
     label_ref: ?usize,
     type: ByteType,

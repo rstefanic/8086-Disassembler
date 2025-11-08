@@ -2,6 +2,7 @@ const std = @import("std");
 
 const Binary = @import("binary.zig");
 const Disassemble = @import("disassemble.zig");
+const emit = @import("emit.zig").emit;
 
 const Error = error{FileNotFound};
 
@@ -29,8 +30,8 @@ pub fn main() !void {
 
     var binary = Binary{ .data = content };
     const disassemble = try Disassemble.init(allocator, &binary);
-    try stdout.print("{any}\n", .{disassemble});
-    disassemble.deinit();
+    defer disassemble.deinit();
+    try emit(&disassemble, stdout);
     try stdout.flush();
 }
 
