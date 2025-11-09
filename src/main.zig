@@ -73,7 +73,9 @@ test "Match disassembled version with compiled version" {
         var bin = Binary{ .data = expected_bin };
         var buf: [1024]u8 = undefined;
         var writer = std.io.Writer.fixed(&buf);
-        try bin.disassemble(&writer);
+        const disassemble = try Disassemble.init(std.testing.allocator, &bin);
+        try emit(&disassemble, &writer);
+        disassemble.deinit();
         try test_file.writeAll(&buf);
 
         // Recompile the test file using nasm.
