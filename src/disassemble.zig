@@ -7,7 +7,7 @@ const DoublyLinkedList = std.DoublyLinkedList;
 const Binary = @import("binary.zig");
 const Instructions = @import("instruction.zig");
 
-const ByteType = enum {
+pub const ByteType = enum {
     Instruction,
     ModRegRm,
     DispLo,
