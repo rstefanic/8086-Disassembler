@@ -187,6 +187,46 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
         }
     }
 
+    // Once we've finished tagging all the bytes, we want to do a pass through
+    // to tag instructions that are referenced by other instructions with labels.
+    var current = code.first;
+    var label_count: usize = 0;
+    while (current) |node| {
+        const byte: *Byte = @fieldParentPtr("node", node);
+
+        // We only need to inspect instructions
+        if (byte.type == .Instruction) {
+            const instruction = Instructions.Instruction.make(byte.data);
+            switch (instruction) {
+                .je, .jl, .jle, .jb, .jbe, .jp, .jo, .js, .jnz, .jnl, .jnle, .jnb, .jnbe, .jnp, .jno, .jns, .loop, .loopz, .loopnz, .jcxz => {
+                    // Read the displacement byte.
+                    const next = node.next;
+                    std.debug.assert(next != null);
+                    const disp_byte: *Byte = @fieldParentPtr("node", next.?);
+                    std.debug.assert(disp_byte.type == .DispLo);
+                    const displacement: i8 = @bitCast(disp_byte.data);
+
+                    // Find where we're jumping to.
+                    const to = relativeNode(node, displacement);
+                    std.debug.assert(to != null);
+
+                    // Ensure it's an instruction.
+                    const jump_byte: *Byte = @fieldParentPtr("node", to.?);
+                    std.debug.assert(jump_byte.type == .Instruction);
+
+                    // Make sure the instruction has a label number so it can be referenced.
+                    if (jump_byte.*.label_ref == null) {
+                        jump_byte.*.label_ref = label_count;
+                        label_count += 1;
+                    }
+                },
+                else => {},
+            }
+        }
+
+        current = node.next;
+    }
+
     return Disassemble{ .allocator = allocator, .code = code };
 }
 
@@ -208,4 +248,26 @@ fn tagByte(allocator: Allocator, data: u8, tag: ByteType) !*Byte {
         .node = .{},
     };
     return byte;
+}
+
+fn relativeNode(node: *DoublyLinkedList.Node, count: i8) ?*DoublyLinkedList.Node {
+    var current: ?*DoublyLinkedList.Node = node;
+    var remaining = count;
+    while(true) {
+        std.debug.print("{d}\n", .{ remaining });
+        std.debug.print("current != null\n", .{});
+        std.debug.assert(current != null);
+
+        if (remaining > 0) {
+            current = current.?.next;
+            remaining -= 1;
+        } else if (remaining < 0) {
+            current = current.?.prev;
+            remaining += 1;
+        } else {
+            break;
+        }
+    }
+
+    return current;
 }
