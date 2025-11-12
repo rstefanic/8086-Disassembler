@@ -254,8 +254,6 @@ fn relativeNode(node: *DoublyLinkedList.Node, count: i8) ?*DoublyLinkedList.Node
     var current: ?*DoublyLinkedList.Node = node;
     var remaining = count;
     while(true) {
-        std.debug.print("{d}\n", .{ remaining });
-        std.debug.print("current != null\n", .{});
         std.debug.assert(current != null);
 
         if (remaining > 0) {
