@@ -190,7 +190,7 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
     // Once we've finished tagging all the bytes, we want to do a pass through
     // to tag instructions that are referenced by other instructions with labels.
     var current = code.first;
-    var label_count: usize = 0;
+    var label_count: usize = 1;
     while (current) |node| {
         const byte: *Byte = @fieldParentPtr("node", node);
 
