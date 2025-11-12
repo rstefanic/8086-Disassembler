@@ -204,10 +204,22 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
                     std.debug.assert(next != null);
                     const disp_byte: *Byte = @fieldParentPtr("node", next.?);
                     std.debug.assert(disp_byte.type == .DispLo);
-                    const displacement: i8 = @bitCast(disp_byte.data);
+
+                    // The displacement occurs from the start of the *next*
+                    // instruction and not the current instruction. This is
+                    // because, the CPU has already decoded the instruction and
+                    // it's setup to decode the next instruction anyways. We
+                    // aren't doing that, so we can compensate for it here so
+                    // our calculation is correct.
+                    var displacement: i8 = @bitCast(disp_byte.data);
+                    if (displacement < 0) {
+                        displacement += 1;
+                    } else {
+                        displacement -= 1;
+                    }
 
                     // Find where we're jumping to.
-                    const to = relativeNode(node, displacement);
+                    const to = relativeNode(next.?, displacement);
                     std.debug.assert(to != null);
 
                     // Ensure it's an instruction.
