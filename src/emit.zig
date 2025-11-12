@@ -491,6 +491,35 @@ fn writeEffectiveAddress(stdout: *std.Io.Writer, rm: u3) !void {
     }
 }
 
+fn findLabelRef(node: *DoublyLinkedList.Node, displacement: i8) usize {
+    var current: ?*DoublyLinkedList.Node = node;
+
+    // Account for the displacement starting from the next instruction.
+    var n = if (displacement < 0) displacement + 1 else displacement - 1;
+    while (current) |curr_node| {
+        std.debug.assert(current != null);
+
+        if (n > 0) {
+            current = curr_node.next;
+            n -= 1;
+        } else if (n < 0) {
+            current = curr_node.prev;
+            n += 1;
+        } else {
+            break;
+        }
+    }
+
+    const byte: *Disassemble.Byte = @fieldParentPtr("node", current.?);
+    std.debug.assert(byte.label_ref != null);
+    return byte.label_ref.?;
+}
+
+inline fn emitShortJump(stdout: *std.Io.Writer, current: *DoublyLinkedList.Node, mneominc: []const u8, displacement: i8) !void {
+    const label_ref = findLabelRef(current, displacement);
+    try stdout.print("{s} label_{d}\t; {d}\n", .{ mneominc ,label_ref, displacement });
+}
+
 fn parseByteFromNode(node: *DoublyLinkedList.Node, expected_type: Disassemble.ByteType) *Disassemble.Byte {
     const byte: *Disassemble.Byte = @fieldParentPtr("node", node);
     if (byte.type != expected_type) {
@@ -509,7 +538,7 @@ fn parseJumpDisplacement(node: *DoublyLinkedList.Node) !i8 {
 fn parseJe(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("je {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -518,7 +547,7 @@ fn parseJe(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJl(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jl {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -527,7 +556,7 @@ fn parseJl(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJle(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jle {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -536,7 +565,7 @@ fn parseJle(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJb(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jb {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -545,7 +574,7 @@ fn parseJb(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJbe(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jbe {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -554,7 +583,7 @@ fn parseJbe(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJp(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jp {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -563,7 +592,7 @@ fn parseJp(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJo(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jo {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -572,7 +601,7 @@ fn parseJo(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJs(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("js {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -581,7 +610,7 @@ fn parseJs(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJnz(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jnz {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -590,7 +619,7 @@ fn parseJnz(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJnl(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jnl {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -599,7 +628,7 @@ fn parseJnl(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJnle(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jnle {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -608,7 +637,7 @@ fn parseJnle(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJnb(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jnb {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -617,7 +646,7 @@ fn parseJnb(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJnbe(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jnbe {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -626,7 +655,7 @@ fn parseJnbe(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJnp(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jnp {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -635,7 +664,7 @@ fn parseJnp(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJno(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jno {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -644,7 +673,7 @@ fn parseJno(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJns(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jns {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -653,7 +682,7 @@ fn parseJns(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseLoop(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("loop {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -662,7 +691,7 @@ fn parseLoop(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseLoopz(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("loopz {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -671,7 +700,7 @@ fn parseLoopz(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseLoopnz(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("loopnz {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
@@ -680,7 +709,7 @@ fn parseLoopnz(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
 fn parseJcxz(node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     if (node.next) |next| {
         const displacement = try parseJumpDisplacement(next);
-        try stdout.print("jcxz {d}\n", .{displacement});
+        try emitShortJump(stdout, next, "jnz", displacement);
     }
 
     return 1;
