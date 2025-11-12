@@ -16,6 +16,11 @@ pub fn emit(self: *const Disassemble, stdout: *std.Io.Writer) !void {
         }
         current = node.next;
 
+        // Write out the label if this instruction has one
+        if (byte.label_ref) |label_ref| {
+            try stdout.print("label_{d}:\n", .{ label_ref });
+        }
+
         const instruction = Instructions.Instruction.make(byte.data);
         const count = switch (instruction) {
             .mov => |mov| try parseMov(mov, node, stdout),
