@@ -495,7 +495,7 @@ fn findLabelRef(node: *DoublyLinkedList.Node, displacement: i8) usize {
     var current: ?*DoublyLinkedList.Node = node;
 
     // Account for the displacement starting from the next instruction.
-    var n = if (displacement < 0) displacement + 1 else displacement - 1;
+    var n = displacement + 1;
     while (current) |curr_node| {
         std.debug.assert(current != null);
 
