@@ -261,7 +261,7 @@ fn tagByte(allocator: Allocator, data: u8, tag: ByteType) !*Byte {
 fn relativeNode(node: *DoublyLinkedList.Node, count: i8) ?*DoublyLinkedList.Node {
     var current: ?*DoublyLinkedList.Node = node;
     var remaining = count;
-    while(true) {
+    while (true) {
         std.debug.assert(current != null);
 
         if (remaining > 0) {

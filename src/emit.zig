@@ -18,7 +18,7 @@ pub fn emit(self: *const Disassemble, stdout: *std.Io.Writer) !void {
 
         // Write out the label if this instruction has one
         if (byte.label_ref) |label_ref| {
-            try stdout.print("label_{d}:\n", .{ label_ref });
+            try stdout.print("label_{d}:\n", .{label_ref});
         }
 
         const instruction = Instructions.Instruction.make(byte.data);
@@ -517,7 +517,7 @@ fn findLabelRef(node: *DoublyLinkedList.Node, displacement: i8) usize {
 
 inline fn emitShortJump(stdout: *std.Io.Writer, current: *DoublyLinkedList.Node, mneominc: []const u8, displacement: i8) !void {
     const label_ref = findLabelRef(current, displacement);
-    try stdout.print("{s} label_{d}\t; {d}\n", .{ mneominc ,label_ref, displacement });
+    try stdout.print("{s} label_{d}\t; {d}\n", .{ mneominc, label_ref, displacement });
 }
 
 fn parseByteFromNode(node: *DoublyLinkedList.Node, expected_type: Disassemble.ByteType) *Disassemble.Byte {
