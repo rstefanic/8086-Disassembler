@@ -24,6 +24,7 @@ pub fn emit(self: *const Disassemble, stdout: *std.Io.Writer) !void {
         const instruction = Instructions.Instruction.make(byte.data);
         const count = switch (instruction) {
             .mov => |mov| try parseMov(mov, node, stdout),
+            .add => |add| try parseAdd(add, node, stdout),
             .je => try parseJe(node, stdout),
             .jl => try parseJl(node, stdout),
             .jle => try parseJle(node, stdout),
@@ -476,6 +477,11 @@ fn parseMov(mov: Instructions.Mov, node: *DoublyLinkedList.Node, stdout: *std.Io
     }
 
     return count;
+}
+
+// TODO: Implement
+fn parseAdd(_: Instructions.Add, _: *DoublyLinkedList.Node, _: *std.Io.Writer) !usize {
+    return 1;
 }
 
 fn writeEffectiveAddress(stdout: *std.Io.Writer, rm: u3) !void {
