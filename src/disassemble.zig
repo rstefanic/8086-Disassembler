@@ -82,7 +82,7 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
                     },
                     .ImmToRegMem => |*m| {
                         const w_flag = m.*.w;
-                        try tagBytesImmToRegMem(allocator, binary, &code, w_flag);
+                        try tagBytesImmToRegMem(allocator, binary, &code, w_flag, null);
                     },
                     // TODO: For the following 3 Mov types, see if there isn't
                     // a nicer way way to put them together in one statement
@@ -130,9 +130,9 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
                     .RegMemWithRegToEither => {},
                     .ImmToRegMem => |*a| {
                         const w_flag = a.*.w;
-                        try tagBytesImmToRegMem(allocator, binary, &code, w_flag);
+                        const s_flag = a.*.s;
+                        try tagBytesImmToRegMem(allocator, binary, &code, w_flag, s_flag);
                     },
-                    .ImmToRegMem => {},
                     .ImmToAcc => {},
                 }
             },
@@ -235,7 +235,7 @@ fn relativeNode(node: *DoublyLinkedList.Node, count: i8) ?*DoublyLinkedList.Node
     return current;
 }
 
-fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinkedList, w_flag: bool) !void {
+fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinkedList, w_flag: bool, s_flag: ?bool) !void {
     const mod_reg_rm_val: u8 = try binary.next();
     const mod_reg_rm: Binary.ModeRegRm = @bitCast(mod_reg_rm_val);
     const mod_reg_rm_byte = try tagByte(allocator, mod_reg_rm_val, .ModRegRm);
@@ -246,6 +246,12 @@ fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinke
             const data_lo_val = try binary.next();
             const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
             code.append(&data_lo.node);
+
+            if (s_flag) |s| {
+                if (s == true) {
+                    return;
+                }
+            }
 
             if (w_flag) {
                 const data_hi_val = try binary.next();
@@ -261,6 +267,12 @@ fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinke
             const data_lo_val = try binary.next();
             const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
             code.append(&data_lo.node);
+
+            if (s_flag) |s| {
+                if (s == true) {
+                    return;
+                }
+            }
 
             if (w_flag) {
                 const data_hi_val = try binary.next();
@@ -280,6 +292,12 @@ fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinke
             const data_lo_val = try binary.next();
             const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
             code.append(&data_lo.node);
+
+            if (s_flag) |s| {
+                if (s == true) {
+                    return;
+                }
+            }
 
             if (w_flag) {
                 const data_hi_val = try binary.next();
