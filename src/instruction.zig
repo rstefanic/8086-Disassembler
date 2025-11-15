@@ -118,7 +118,7 @@ pub const Instruction = union(InstructionType) {
                 const s = (byte & 0b00000010) > 0;
                 break :immToRegMem Instruction{ .add = Add{ .ImmToRegMem = .{ .s = s, .w = w } } };
             },
-            0b00010100...0b00010101 => immToAcc: {
+            0b00000100, 0b00000101 => immToAcc: {
                 const w = (byte & 0b00000001) > 0;
                 break :immToAcc Instruction{ .add = Add{ .ImmToAcc = .{ .w = w } } };
             },
