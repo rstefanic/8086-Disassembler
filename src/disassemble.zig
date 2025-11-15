@@ -48,13 +48,13 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
                         try tagBytesImmToRegMem(allocator, binary, &code, w_flag, null);
                     },
                     .ImmToReg => |*m| {
-                        try tagBytesData(allocator, binary, &code, m.*.w);
+                        try tagBytesData(allocator, binary, &code, m.*.w, null);
                     },
                     .AccToMem => |*m| {
-                        try tagBytesData(allocator, binary, &code, m.*.w);
+                        try tagBytesData(allocator, binary, &code, m.*.w, null);
                     },
                     .MemToAcc => |*m| {
-                        try tagBytesData(allocator, binary, &code, m.*.w);
+                        try tagBytesData(allocator, binary, &code, m.*.w, null);
                     },
                 }
             },
@@ -69,7 +69,7 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
                         try tagBytesImmToRegMem(allocator, binary, &code, w_flag, s_flag);
                     },
                     .ImmToAcc => |*a| {
-                        try tagBytesData(allocator, binary, &code, a.*.w);
+                        try tagBytesData(allocator, binary, &code, a.*.w, null);
                     },
                 }
             },
@@ -226,6 +226,7 @@ fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinke
             const disp_hi = try tagByte(allocator, disp_hi_val, .DispHi);
             code.append(&disp_hi.node);
 
+            // TODO: Try replacing the following lines with `tagBytesData`
             const data_lo_val = try binary.next();
             const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
             code.append(&data_lo.node);
@@ -242,8 +243,8 @@ fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinke
                 code.append(&data_hi.node);
             }
         },
-        else => {
-            @panic("Invalid mode for  \"Immediate to register/memory\" instruction.");
+        Binary.Mode.Register => {
+            try tagBytesData(allocator, binary, code, w_flag, s_flag);
         },
     }
 }
@@ -289,10 +290,16 @@ fn tagBytesModRegRmWithDisp(allocator: Allocator, binary: *Binary, code: *Doubly
     }
 }
 
-fn tagBytesData(allocator: Allocator, binary: *Binary, code: *DoublyLinkedList, w_flag: bool) !void {
+fn tagBytesData(allocator: Allocator, binary: *Binary, code: *DoublyLinkedList, w_flag: bool, s_flag: ?bool) !void {
     const data_lo_val = try binary.next();
     const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
     code.append(&data_lo.node);
+
+    if (s_flag) |s| {
+        if (s) {
+            return;
+        }
+    }
 
     if (w_flag) {
         const data_hi_val = try binary.next();
