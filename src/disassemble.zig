@@ -47,44 +47,14 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
                         const w_flag = m.*.w;
                         try tagBytesImmToRegMem(allocator, binary, &code, w_flag, null);
                     },
-                    // TODO: For the following 3 Mov types, see if there isn't
-                    // a nicer way way to put them together in one statement
-                    // with the capture group since they all share the w_flag.
                     .ImmToReg => |*m| {
-                        const w_flag = m.*.w;
-                        const data_lo_val = try binary.next();
-                        const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
-                        code.append(&data_lo.node);
-
-                        if (w_flag) {
-                            const data_hi_val = try binary.next();
-                            const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
-                            code.append(&data_hi.node);
-                        }
+                        try tagBytesData(allocator, binary, &code, m.*.w);
                     },
                     .AccToMem => |*m| {
-                        const w_flag = m.*.w;
-                        const data_lo_val = try binary.next();
-                        const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
-                        code.append(&data_lo.node);
-
-                        if (w_flag) {
-                            const data_hi_val = try binary.next();
-                            const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
-                            code.append(&data_hi.node);
-                        }
+                        try tagBytesData(allocator, binary, &code, m.*.w);
                     },
                     .MemToAcc => |*m| {
-                        const w_flag = m.*.w;
-                        const data_lo_val = try binary.next();
-                        const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
-                        code.append(&data_lo.node);
-
-                        if (w_flag) {
-                            const data_hi_val = try binary.next();
-                            const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
-                            code.append(&data_hi.node);
-                        }
+                        try tagBytesData(allocator, binary, &code, m.*.w);
                     },
                 }
             },
@@ -98,7 +68,9 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
                         const s_flag = a.*.s;
                         try tagBytesImmToRegMem(allocator, binary, &code, w_flag, s_flag);
                     },
-                    .ImmToAcc => {},
+                    .ImmToAcc => |*a| {
+                        try tagBytesData(allocator, binary, &code, a.*.w);
+                    },
                 }
             },
             .je, .jl, .jle, .jb, .jbe, .jp, .jo, .js, .jnz, .jnl, .jnle, .jnb, .jnbe, .jnp, .jno, .jns, .loop, .loopz, .loopnz, .jcxz => {
@@ -314,5 +286,17 @@ fn tagBytesModRegRmWithDisp(allocator: Allocator, binary: *Binary, code: *Doubly
         Binary.Mode.Register => {
             // Nothing more to do
         },
+    }
+}
+
+fn tagBytesData(allocator: Allocator, binary: *Binary, code: *DoublyLinkedList, w_flag: bool) !void {
+    const data_lo_val = try binary.next();
+    const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
+    code.append(&data_lo.node);
+
+    if (w_flag) {
+        const data_hi_val = try binary.next();
+        const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
+        code.append(&data_hi.node);
     }
 }
