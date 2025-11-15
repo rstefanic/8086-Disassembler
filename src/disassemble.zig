@@ -127,7 +127,8 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
             },
             .add => |add| {
                 switch (add) {
-                    .RegMemWithRegToEither => |*a| {
+                    .RegMemWithRegToEither => {},
+                    .ImmToRegMem => |*a| {
                         const w_flag = a.*.w;
                         try tagBytesImmToRegMem(allocator, binary, &code, w_flag);
                     },
