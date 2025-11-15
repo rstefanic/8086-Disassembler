@@ -41,44 +41,7 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
             .mov => |mov| {
                 switch (mov) {
                     .RegMemToFromReg => |_| {
-                        // Check out how much we'll need to read
-                        const mod_reg_rm_val: u8 = try binary.next();
-                        const mod_reg_rm: Binary.ModeRegRm = @bitCast(mod_reg_rm_val);
-                        const mod_reg_rm_byte = try tagByte(allocator, mod_reg_rm_val, .ModRegRm);
-                        code.append(&mod_reg_rm_byte.node);
-
-                        switch (mod_reg_rm.mode) {
-                            Binary.Mode.MemoryNoDisplacement => {
-                                // Handle the special case when there IS a displacement
-                                // when the MODE is set to "No Displacement".
-                                if (mod_reg_rm.rm == 0b110) {
-                                    const byte_lo_val = try binary.next();
-                                    const byte_lo = try tagByte(allocator, byte_lo_val, .DispLo);
-                                    code.append(&byte_lo.node);
-
-                                    const byte_hi_val = try binary.next();
-                                    const byte_hi = try tagByte(allocator, byte_hi_val, .DispHi);
-                                    code.append(&byte_hi.node);
-                                }
-                            },
-                            Binary.Mode.Memory8BitDisplacement => {
-                                const byte_lo_val = try binary.next();
-                                const byte_lo = try tagByte(allocator, byte_lo_val, .DispLo);
-                                code.append(&byte_lo.node);
-                            },
-                            Binary.Mode.Memory16BitDisplacement => {
-                                const byte_lo_val = try binary.next();
-                                const byte_lo = try tagByte(allocator, byte_lo_val, .DispLo);
-                                code.append(&byte_lo.node);
-
-                                const byte_hi_val = try binary.next();
-                                const byte_hi = try tagByte(allocator, byte_hi_val, .DispHi);
-                                code.append(&byte_hi.node);
-                            },
-                            Binary.Mode.Register => {
-                                // Nothing more to do
-                            },
-                        }
+                        try tagBytesModRegRmWithDisp(allocator, binary, &code);
                     },
                     .ImmToRegMem => |*m| {
                         const w_flag = m.*.w;
@@ -127,7 +90,9 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
             },
             .add => |add| {
                 switch (add) {
-                    .RegMemWithRegToEither => {},
+                    .RegMemWithRegToEither => {
+                        try tagBytesModRegRmWithDisp(allocator, binary, &code);
+                    },
                     .ImmToRegMem => |*a| {
                         const w_flag = a.*.w;
                         const s_flag = a.*.s;
@@ -307,6 +272,47 @@ fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinke
         },
         else => {
             @panic("Invalid mode for  \"Immediate to register/memory\" instruction.");
+        },
+    }
+}
+
+fn tagBytesModRegRmWithDisp(allocator: Allocator, binary: *Binary, code: *DoublyLinkedList) !void {
+    // Check out how much we'll need to read
+    const mod_reg_rm_val: u8 = try binary.next();
+    const mod_reg_rm: Binary.ModeRegRm = @bitCast(mod_reg_rm_val);
+    const mod_reg_rm_byte = try tagByte(allocator, mod_reg_rm_val, .ModRegRm);
+    code.append(&mod_reg_rm_byte.node);
+
+    switch (mod_reg_rm.mode) {
+        Binary.Mode.MemoryNoDisplacement => {
+            // Handle the special case when there IS a displacement
+            // when the MODE is set to "No Displacement".
+            if (mod_reg_rm.rm == 0b110) {
+                const byte_lo_val = try binary.next();
+                const byte_lo = try tagByte(allocator, byte_lo_val, .DispLo);
+                code.append(&byte_lo.node);
+
+                const byte_hi_val = try binary.next();
+                const byte_hi = try tagByte(allocator, byte_hi_val, .DispHi);
+                code.append(&byte_hi.node);
+            }
+        },
+        Binary.Mode.Memory8BitDisplacement => {
+            const byte_lo_val = try binary.next();
+            const byte_lo = try tagByte(allocator, byte_lo_val, .DispLo);
+            code.append(&byte_lo.node);
+        },
+        Binary.Mode.Memory16BitDisplacement => {
+            const byte_lo_val = try binary.next();
+            const byte_lo = try tagByte(allocator, byte_lo_val, .DispLo);
+            code.append(&byte_lo.node);
+
+            const byte_hi_val = try binary.next();
+            const byte_hi = try tagByte(allocator, byte_hi_val, .DispHi);
+            code.append(&byte_hi.node);
+        },
+        Binary.Mode.Register => {
+            // Nothing more to do
         },
     }
 }
