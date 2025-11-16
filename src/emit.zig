@@ -479,9 +479,396 @@ fn parseMov(mov: Instructions.Mov, node: *DoublyLinkedList.Node, stdout: *std.Io
     return count;
 }
 
-// TODO: Implement
-fn parseAdd(_: Instructions.Add, _: *DoublyLinkedList.Node, _: *std.Io.Writer) !usize {
-    return 1;
+fn parseAdd(add: Instructions.Add, node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
+    var count: usize = 0;
+    var current = node;
+
+    switch (add) {
+        .RegMemWithRegToEither => |a| {
+            const w_flag = a.w;
+            const d_flag = a.d;
+
+            var mod_reg_rm: Binary.ModeRegRm = undefined;
+            if (current.next) |next| {
+                const mod_reg_rm_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                mod_reg_rm = @bitCast(mod_reg_rm_byte.data);
+                current = next;
+                count += 1;
+            } else {
+                return error.ExpectedModRegRm;
+            }
+
+            try stdout.print("add ", .{});
+            switch (mod_reg_rm.mode) {
+                Binary.Mode.Register => {
+                    const operand_one = Register.make(mod_reg_rm.reg, w_flag);
+                    const operand_two = Register.make(mod_reg_rm.rm, w_flag);
+                    try stdout.print("{s}, {s}\n", .{ operand_two.emit(), operand_one.emit() });
+                },
+                Binary.Mode.MemoryNoDisplacement => {
+                    const register = Register.make(mod_reg_rm.reg, w_flag).emit();
+
+                    // Handle the special case when there IS a displacement
+                    // when the MODE is set to "No Displacement".
+                    if (mod_reg_rm.rm == 0b110) {
+                        var data_lo: u8 = undefined;
+                        var data_hi: u16 = undefined;
+
+                        if (current.next) |next| {
+                            const lo_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                            data_lo = lo_byte.data;
+                            count += 1;
+                            current = next;
+                        } else {
+                            return error.ExpectedDataLo;
+                        }
+
+                        if (current.next) |next| {
+                            const hi_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                            data_hi = hi_byte.data;
+                            count += 1;
+                            current = next;
+                        } else {
+                            return error.ExpectedDataHi;
+                        }
+
+                        const addr = (data_hi << 8) | data_lo;
+                        try stdout.print("{s}, [{d}]\n", .{ register, addr });
+                    } else {
+                        if (d_flag) {
+                            try stdout.print("{s}, [", .{register});
+                            try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                            try stdout.print("]\n", .{});
+                        } else {
+                            try stdout.print("[", .{});
+                            try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                            try stdout.print("], {s}\n", .{register});
+                        }
+                    }
+                },
+                Binary.Mode.Memory8BitDisplacement => {
+                    // 8 bit displacement allows for the displacement to be
+                    // signed. It does this by performing sign extension
+                    // on the byte and using that as the displacement value.
+                    var data_lo: u8 = undefined;
+
+                    if (current.next) |next| {
+                        const lo_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                        data_lo = lo_byte.data;
+                        count += 1;
+                        current = next;
+                    } else {
+                        return error.ExpectedDataLo;
+                    }
+
+                    const msb_set = (0b1000_0000 & data_lo) == 0b1000_0000;
+                    const data_hi: u16 =
+                        if (msb_set)
+                            0b1111_1111_0000_0000
+                        else
+                            0b0000_0000_0000_0000;
+                    const displacement: i16 = @bitCast(data_hi | data_lo);
+                    const op: u8 = if (displacement >= 0) '+' else '-';
+                    const register = Register.make(mod_reg_rm.reg, w_flag).emit();
+
+                    if (d_flag) {
+                        try stdout.print("{s}, [", .{register});
+                        try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                        try stdout.print(" {c} {d}]\n", .{ op, @abs(displacement) });
+                    } else {
+                        try stdout.print("[", .{});
+                        try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                        try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
+                    }
+                },
+                Binary.Mode.Memory16BitDisplacement => {
+                    var data_lo: u8 = undefined;
+                    var data_hi: u16 = undefined;
+
+                    if (current.next) |next| {
+                        const lo_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                        data_lo = lo_byte.data;
+                        count += 1;
+                        current = next;
+                    } else {
+                        return error.ExpectedDataLo;
+                    }
+
+                    if (current.next) |next| {
+                        const hi_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                        data_hi = hi_byte.data;
+                        count += 1;
+                        current = next;
+                    } else {
+                        return error.ExpectedDataHi;
+                    }
+
+                    const displacement: i16 = @bitCast((data_hi << 8) | data_lo);
+                    const op: u8 = if (displacement >= 0) '+' else '-';
+                    const register = Register.make(mod_reg_rm.reg, w_flag).emit();
+
+                    if (d_flag) {
+                        try stdout.print("{s}, [", .{register});
+                        try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                        try stdout.print(" {c} {d}]\n", .{ op, @abs(displacement) });
+                    } else {
+                        try stdout.print("[", .{});
+                        try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                        try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
+                    }
+                },
+            }
+        },
+        .ImmToRegMem => |a| {
+            const w_flag = a.w;
+            const s_flag = a.w;
+
+            var mod_reg_rm: Binary.ModeRegRm = undefined;
+            if (current.next) |next| {
+                const mod_reg_rm_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                mod_reg_rm = @bitCast(mod_reg_rm_byte.data);
+                current = next;
+                count += 1;
+            } else {
+                return error.ExpectedModRegRm;
+            }
+
+            try stdout.print("add ", .{});
+            switch (mod_reg_rm.mode) {
+                Binary.Mode.Register => {
+                    // Read immediate value
+                    const immediate = immediate: {
+                        var data_lo: u8 = undefined;
+
+                        if (current.next) |next| {
+                            const lo_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                            data_lo = lo_byte.data;
+                            count += 1;
+                            current = next;
+                        } else {
+                            return error.ExpectedDataLo;
+                        }
+
+                        if (s_flag or !w_flag) {
+                            break :immediate data_lo;
+                        }
+
+                        var data_hi: u16 = undefined;
+                        if (current.next) |next| {
+                            const hi_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                            data_hi = hi_byte.data;
+                            count += 1;
+                            current = next;
+                        } else {
+                            return error.ExpectedDataHi;
+                        }
+                        break :immediate (data_hi << 8) | data_lo;
+                    };
+                    const size_keyword: *const [4:0]u8 = if (w_flag) "word" else "byte";
+
+                    try stdout.print("[", .{});
+                    try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                    try stdout.print("], {s} {d}\n", .{ size_keyword, immediate });
+                },
+                Binary.Mode.MemoryNoDisplacement => {
+                    if (w_flag) {
+                        var disp_lo: u8 = undefined;
+                        var disp_hi: u16 = undefined;
+
+                        if (current.next) |next| {
+                            const disp_lo_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                            disp_lo = disp_lo_byte.data;
+                            count += 1;
+                            current = next;
+                        } else {
+                            return error.ExpectedDispLo;
+                        }
+
+                        if (current.next) |next| {
+                            const disp_hi_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                            disp_hi = disp_hi_byte.data;
+                            count += 1;
+                            current = next;
+                        } else {
+                            return error.ExpectedDispHi;
+                        }
+                        const displacement = (disp_hi << 8) | disp_lo;
+
+                        try stdout.print("[", .{});
+                        try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                        try stdout.print("], word {d}\n", .{displacement});
+                    } else {
+                        var disp: u8 = undefined;
+
+                        if (current.next) |next| {
+                            const disp_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                            disp = disp_byte.data;
+                            count += 1;
+                            current = next;
+                        } else {
+                            return error.ExpectedDispLo;
+                        }
+
+                        try stdout.print("[", .{});
+                        try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                        try stdout.print("], byte {d}\n", .{disp});
+                    }
+                },
+                Binary.Mode.Memory8BitDisplacement => {
+                    // 8 bit displacement allows for the displacement to be
+                    // signed. It does this by performing sign extension
+                    // on the byte and using that as the displacement value.
+                    var disp_lo: u8 = undefined;
+                    if (current.next) |next| {
+                        const disp_lo_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                        disp_lo = disp_lo_byte.data;
+                        count += 1;
+                        current = next;
+                    } else {
+                        return error.ExpectedDispLo;
+                    }
+
+                    const msb_set = (0b1000_0000 & disp_lo) == 0b1000_0000;
+                    const disp_hi: u16 =
+                        if (msb_set)
+                            0b1111_1111_0000_0000
+                        else
+                            0b0000_0000_0000_0000;
+                    const displacement: i16 = @bitCast(disp_hi | disp_lo);
+                    const op: u8 = if (displacement >= 0) '+' else '-';
+
+                    // Read immediate value
+                    const immediate = immediate: {
+                        var data_lo: u8 = undefined;
+
+                        if (current.next) |next| {
+                            const lo_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                            data_lo = lo_byte.data;
+                            count += 1;
+                            current = next;
+                        } else {
+                            return error.ExpectedDataLo;
+                        }
+
+                        if (s_flag or !w_flag) {
+                            break :immediate data_lo;
+                        }
+
+                        var data_hi: u16 = undefined;
+                        if (current.next) |next| {
+                            const hi_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                            data_hi = hi_byte.data;
+                            count += 1;
+                            current = next;
+                        } else {
+                            return error.ExpectedDataHi;
+                        }
+                        break :immediate (data_hi << 8) | data_lo;
+                    };
+                    const size_keyword: *const [4:0]u8 = if (w_flag) "word" else "byte";
+
+                    try stdout.print("[", .{});
+                    try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                    try stdout.print(" {c} {d}], {s} {d}\n", .{ op, @abs(displacement), size_keyword, immediate });
+                },
+                Binary.Mode.Memory16BitDisplacement => {
+                    // Read two bytes for the displacement value
+                    var disp_lo: u8 = undefined;
+                    var disp_hi: u16 = undefined;
+
+                    if (current.next) |next| {
+                        const disp_lo_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                        disp_lo = disp_lo_byte.data;
+                        count += 1;
+                        current = next;
+                    } else {
+                        return error.ExpectedDispLo;
+                    }
+
+                    if (current.next) |next| {
+                        const disp_hi_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                        disp_hi = disp_hi_byte.data;
+                        count += 1;
+                        current = next;
+                    } else {
+                        return error.ExpectedDispHi;
+                    }
+                    const displacement = (disp_hi << 8) | disp_lo;
+                    const op: u8 = if (displacement >= 0) '+' else '-';
+
+                    // Read immediate value
+                    const immediate = immediate: {
+                        var data_lo: u8 = undefined;
+
+                        if (current.next) |next| {
+                            const lo_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                            data_lo = lo_byte.data;
+                            count += 1;
+                            current = next;
+                        } else {
+                            return error.ExpectedDataLo;
+                        }
+
+                        if (s_flag or !w_flag) {
+                            break :immediate data_lo;
+                        }
+
+                        var data_hi: u16 = undefined;
+                        if (current.next) |next| {
+                            const hi_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                            data_hi = hi_byte.data;
+                            count += 1;
+                            current = next;
+                        } else {
+                            return error.ExpectedDataHi;
+                        }
+                        break :immediate (data_hi << 8) | data_lo;
+                    };
+                    const size_keyword: *const [4:0]u8 = if (w_flag) "word" else "byte";
+
+                    try stdout.print("[", .{});
+                    try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                    try stdout.print(" {c} {d}], {s} {d}\n", .{ op, @abs(displacement), size_keyword, immediate });
+                },
+            }
+        },
+        .ImmToAcc => |a| {
+            const w_flag = a.w;
+
+            const immediate = immediate: {
+                var data_lo: u8 = undefined;
+
+                if (current.next) |next| {
+                    const lo_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                    data_lo = lo_byte.data;
+                    count += 1;
+                    current = next;
+                } else {
+                    return error.ExpectedDataLo;
+                }
+
+                if (!w_flag) {
+                    break :immediate data_lo;
+                }
+
+                var data_hi: u16 = undefined;
+                if (current.next) |next| {
+                    const hi_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+                    data_hi = hi_byte.data;
+                    count += 1;
+                    current = next;
+                } else {
+                    return error.ExpectedDataHi;
+                }
+                break :immediate (data_hi << 8) | data_lo;
+            };
+
+            const register = if (w_flag) Register.AX else Register.AL;
+            try stdout.print("add {s}, [{d}]\n", .{ register.emit(), immediate });
+        },
+    }
+
+    return count;
 }
 
 fn writeEffectiveAddress(stdout: *std.Io.Writer, rm: u3) !void {
