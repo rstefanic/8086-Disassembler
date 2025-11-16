@@ -664,11 +664,9 @@ fn parseAdd(add: Instructions.Add, node: *DoublyLinkedList.Node, stdout: *std.Io
                         }
                         break :immediate (data_hi << 8) | data_lo;
                     };
-                    const size_keyword: *const [4:0]u8 = if (w_flag) "word" else "byte";
 
-                    try stdout.print("[", .{});
-                    try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                    try stdout.print("], {s} {d}\n", .{ size_keyword, immediate });
+                    const register = Register.make(mod_reg_rm.rm, w_flag);
+                    try stdout.print("{s}, {d}\n", .{ register.emit(), immediate });
                 },
                 Binary.Mode.MemoryNoDisplacement => {
                     if (w_flag) {
