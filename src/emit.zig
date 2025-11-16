@@ -707,9 +707,9 @@ fn parseAdd(add: Instructions.Add, node: *DoublyLinkedList.Node, stdout: *std.Io
                             return error.ExpectedDispLo;
                         }
 
-                        try stdout.print("[", .{});
+                        try stdout.print("byte [", .{});
                         try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                        try stdout.print("], byte {d}\n", .{disp});
+                        try stdout.print("], {d}\n", .{disp});
                     }
                 },
                 Binary.Mode.Memory8BitDisplacement => {
@@ -765,9 +765,9 @@ fn parseAdd(add: Instructions.Add, node: *DoublyLinkedList.Node, stdout: *std.Io
                     };
                     const size_keyword: *const [4:0]u8 = if (w_flag) "word" else "byte";
 
-                    try stdout.print("[", .{});
+                    try stdout.print("{s} [", .{size_keyword});
                     try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                    try stdout.print(" {c} {d}], {s} {d}\n", .{ op, @abs(displacement), size_keyword, immediate });
+                    try stdout.print(" {c} {d}], {d}\n", .{ op, @abs(displacement), immediate });
                 },
                 Binary.Mode.Memory16BitDisplacement => {
                     // Read two bytes for the displacement value
@@ -824,9 +824,9 @@ fn parseAdd(add: Instructions.Add, node: *DoublyLinkedList.Node, stdout: *std.Io
                     };
                     const size_keyword: *const [4:0]u8 = if (w_flag) "word" else "byte";
 
-                    try stdout.print("[", .{});
+                    try stdout.print("{s} [", .{size_keyword});
                     try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                    try stdout.print(" {c} {d}], {s} {d}\n", .{ op, @abs(displacement), size_keyword, immediate });
+                    try stdout.print(" {c} {d}], {d}\n", .{ op, @abs(displacement), immediate });
                 },
             }
         },
