@@ -862,7 +862,7 @@ fn parseAdd(add: Instructions.Add, node: *DoublyLinkedList.Node, stdout: *std.Io
             };
 
             const register = if (w_flag) Register.AX else Register.AL;
-            try stdout.print("add {s}, [{d}]\n", .{ register.emit(), immediate });
+            try stdout.print("add {s}, {d}\n", .{ register.emit(), immediate });
         },
     }
 
