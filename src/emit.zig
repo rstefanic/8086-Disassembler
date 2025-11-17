@@ -55,6 +55,28 @@ pub fn emit(self: *const Disassemble, stdout: *std.Io.Writer) !void {
     }
 }
 
+fn nextByte(node: **DoublyLinkedList.Node, expected: Disassemble.ByteType) !*Disassemble.Byte {
+    if (node.*.next) |next| {
+        const byte: *Disassemble.Byte = @fieldParentPtr("node", next);
+        if (byte.type != expected) {
+            return switch (expected) {
+                Disassemble.ByteType.Instruction => error.ExpectedInstruction,
+                Disassemble.ByteType.ModRegRm => error.ExpectedModRegRm,
+                Disassemble.ByteType.DispLo => error.ExpectedDispLo,
+                Disassemble.ByteType.DispHi => error.ExpectedDispHi,
+                Disassemble.ByteType.DataLo => error.ExpectedDataLo,
+                Disassemble.ByteType.DataHi => error.ExpectedDataHi,
+                Disassemble.ByteType.AddrLo => error.ExpectedAddrLo,
+                Disassemble.ByteType.AddrHi => error.ExpectedAddrHi,
+            };
+        }
+        node.* = next;
+        return byte;
+    } else {
+        return error.NoNodesLeft;
+    }
+}
+
 fn parseMov(mov: Instructions.Mov, node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     var count: usize = 0;
     var current = node;
@@ -63,15 +85,9 @@ fn parseMov(mov: Instructions.Mov, node: *DoublyLinkedList.Node, stdout: *std.Io
             const d_flag = m.d;
             const w_flag = m.w;
 
-            var mod_reg_rm: Binary.ModeRegRm = undefined;
-            if (current.next) |next| {
-                const mod_reg_rm_byte: *Disassemble.Byte = @fieldParentPtr("node", next);
-                mod_reg_rm = @bitCast(mod_reg_rm_byte.data);
-                current = next;
-                count += 1;
-            } else {
-                return error.ExpectedModRegRm;
-            }
+            const mod_reg_rm_byte: *Disassemble.Byte = try nextByte(&current, .ModRegRm);
+            const mod_reg_rm: Binary.ModeRegRm = @bitCast(mod_reg_rm_byte.data);
+            count += 1;
 
             try stdout.print("mov ", .{});
             switch (mod_reg_rm.mode) {
