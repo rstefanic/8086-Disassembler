@@ -38,46 +38,10 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
         code.append(&instruction_byte.node);
 
         switch (instruction) {
-            .mov => |mov| {
-                switch (mov) {
-                    .RegMemToFromReg => |_| {
-                        try tagBytesModRegRmWithDisp(allocator, binary, &code);
-                    },
-                    .ImmToRegMem => |*m| {
-                        const w_flag = m.*.w;
-                        try tagBytesImmToRegMem(allocator, binary, &code, w_flag, null);
-                    },
-                    .ImmToReg => |*m| {
-                        try tagBytesData(allocator, binary, &code, m.*.w, null);
-                    },
-                    .AccToMem => |*m| {
-                        try tagBytesData(allocator, binary, &code, m.*.w, null);
-                    },
-                    .MemToAcc => |*m| {
-                        try tagBytesData(allocator, binary, &code, m.*.w, null);
-                    },
-                }
-            },
-            .add => |add| {
-                switch (add) {
-                    .RegMemWithRegToEither => {
-                        try tagBytesModRegRmWithDisp(allocator, binary, &code);
-                    },
-                    .ImmToRegMem => |*a| {
-                        const w_flag = a.*.w;
-                        const s_flag = a.*.s;
-                        try tagBytesImmToRegMem(allocator, binary, &code, w_flag, s_flag);
-                    },
-                    .ImmToAcc => |*a| {
-                        try tagBytesData(allocator, binary, &code, a.*.w, null);
-                    },
-                }
-            },
-            .je, .jl, .jle, .jb, .jbe, .jp, .jo, .js, .jnz, .jnl, .jnle, .jnb, .jnbe, .jnp, .jno, .jns, .loop, .loopz, .loopnz, .jcxz => {
-                const displacement = try binary.next();
-                const diplacement_byte = try tagByte(allocator, displacement, .DispLo);
-                code.append(&diplacement_byte.node);
-            },
+            .mov => |mov| try handleMovInstruction(allocator, mov, binary, &code),
+            .add => |add| try handleAddInstruction(allocator, add, binary, &code),
+            .je, .jl, .jle, .jb, .jbe, .jp, .jo, .js, .jnz, .jnl, .jnle, .jnb, .jnbe, .jnp, .jno, .jns, .loop, .loopz, .loopnz, .jcxz => 
+                try handleJmpInstruction(allocator, binary, &code),
         }
     }
 
@@ -139,6 +103,49 @@ pub fn deinit(self: *const Disassemble) void {
         node = n.next;
         self.allocator.destroy(byte);
     }
+}
+
+fn handleMovInstruction(allocator: Allocator, mov: Instructions.Mov, binary: *Binary, code: *DoublyLinkedList) !void {
+    switch (mov) {
+        .RegMemToFromReg => |_| {
+            try tagBytesModRegRmWithDisp(allocator, binary, code);
+        },
+        .ImmToRegMem => |*m| {
+            const w_flag = m.*.w;
+            try tagBytesImmToRegMem(allocator, binary, code, w_flag, null);
+        },
+        .ImmToReg => |*m| {
+            try tagBytesData(allocator, binary, code, m.*.w, null);
+        },
+        .AccToMem => |*m| {
+            try tagBytesData(allocator, binary, code, m.*.w, null);
+        },
+        .MemToAcc => |*m| {
+            try tagBytesData(allocator, binary, code, m.*.w, null);
+        },
+    }
+}
+
+fn handleAddInstruction(allocator: Allocator, add: Instructions.Add, binary: *Binary, code: *DoublyLinkedList) !void {
+    switch (add) {
+        .RegMemWithRegToEither => {
+            try tagBytesModRegRmWithDisp(allocator, binary, code);
+        },
+        .ImmToRegMem => |*a| {
+            const w_flag = a.*.w;
+            const s_flag = a.*.s;
+            try tagBytesImmToRegMem(allocator, binary, code, w_flag, s_flag);
+        },
+        .ImmToAcc => |*a| {
+            try tagBytesData(allocator, binary, code, a.*.w, null);
+        },
+    }
+}
+
+fn handleJmpInstruction(allocator: Allocator, binary: *Binary, code: *DoublyLinkedList) !void {
+    const displacement = try binary.next();
+    const diplacement_byte = try tagByte(allocator, displacement, .DispLo);
+    code.append(&diplacement_byte.node);
 }
 
 fn tagByte(allocator: Allocator, data: u8, tag: ByteType) !*Byte {
