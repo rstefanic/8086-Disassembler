@@ -40,58 +40,13 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
         switch (instruction) {
             .mov => |mov| try handleMovInstruction(allocator, mov, binary, &code),
             .add => |add| try handleAddInstruction(allocator, add, binary, &code),
-            .je, .jl, .jle, .jb, .jbe, .jp, .jo, .js, .jnz, .jnl, .jnle, .jnb, .jnbe, .jnp, .jno, .jns, .loop, .loopz, .loopnz, .jcxz => 
-                try handleJmpInstruction(allocator, binary, &code),
+            .je, .jl, .jle, .jb, .jbe, .jp, .jo, .js, .jnz, .jnl, .jnle, .jnb, .jnbe, .jnp, .jno, .jns, .loop, .loopz, .loopnz, .jcxz => try handleJmpInstruction(allocator, binary, &code),
         }
     }
 
     // Once we've finished tagging all the bytes, we want to do a pass through
     // to tag instructions that are referenced by other instructions with labels.
-    var current = code.first;
-    var label_count: usize = 1;
-    while (current) |node| {
-        const byte: *Byte = @fieldParentPtr("node", node);
-
-        // We only need to inspect instructions
-        if (byte.type == .Instruction) {
-            const instruction = Instructions.Instruction.make(byte.data);
-            switch (instruction) {
-                .je, .jl, .jle, .jb, .jbe, .jp, .jo, .js, .jnz, .jnl, .jnle, .jnb, .jnbe, .jnp, .jno, .jns, .loop, .loopz, .loopnz, .jcxz => {
-                    // Read the displacement byte.
-                    const next = node.next;
-                    std.debug.assert(next != null);
-                    const disp_byte: *Byte = @fieldParentPtr("node", next.?);
-                    std.debug.assert(disp_byte.type == .DispLo);
-
-                    var displacement: i8 = @bitCast(disp_byte.data);
-
-                    // The displacement occurs from the start of the *next*
-                    // instruction and not the current instruction. This is
-                    // because the CPU has already decoded the instruction and
-                    // it's ready to decode the next instruction, so the
-                    // displacement is calculated from the next instruction.
-                    displacement += 1;
-
-                    // Find where we're jumping to.
-                    const to = relativeNode(next.?, displacement);
-                    std.debug.assert(to != null);
-
-                    // Ensure it's an instruction.
-                    const jump_byte: *Byte = @fieldParentPtr("node", to.?);
-                    std.debug.assert(jump_byte.type == .Instruction);
-
-                    // Make sure the instruction has a label number so it can be referenced.
-                    if (jump_byte.*.label_ref == null) {
-                        jump_byte.*.label_ref = label_count;
-                        label_count += 1;
-                    }
-                },
-                else => {},
-            }
-        }
-
-        current = node.next;
-    }
+    labelInstructions(&code);
 
     return Disassemble{ .allocator = allocator, .code = code };
 }
@@ -146,6 +101,54 @@ fn handleJmpInstruction(allocator: Allocator, binary: *Binary, code: *DoublyLink
     const displacement = try binary.next();
     const diplacement_byte = try tagByte(allocator, displacement, .DispLo);
     code.append(&diplacement_byte.node);
+}
+
+fn labelInstructions(code: *DoublyLinkedList) void {
+    var current = code.first;
+    var label_count: usize = 1;
+    while (current) |node| {
+        const byte: *Byte = @fieldParentPtr("node", node);
+
+        // We only need to inspect instructions
+        if (byte.type == .Instruction) {
+            const instruction = Instructions.Instruction.make(byte.data);
+            switch (instruction) {
+                .je, .jl, .jle, .jb, .jbe, .jp, .jo, .js, .jnz, .jnl, .jnle, .jnb, .jnbe, .jnp, .jno, .jns, .loop, .loopz, .loopnz, .jcxz => {
+                    // Read the displacement byte.
+                    const next = node.next;
+                    std.debug.assert(next != null);
+                    const disp_byte: *Byte = @fieldParentPtr("node", next.?);
+                    std.debug.assert(disp_byte.type == .DispLo);
+
+                    var displacement: i8 = @bitCast(disp_byte.data);
+
+                    // The displacement occurs from the start of the *next*
+                    // instruction and not the current instruction. This is
+                    // because the CPU has already decoded the instruction and
+                    // it's ready to decode the next instruction, so the
+                    // displacement is calculated from the next instruction.
+                    displacement += 1;
+
+                    // Find where we're jumping to.
+                    const to = relativeNode(next.?, displacement);
+                    std.debug.assert(to != null);
+
+                    // Ensure it's an instruction.
+                    const jump_byte: *Byte = @fieldParentPtr("node", to.?);
+                    std.debug.assert(jump_byte.type == .Instruction);
+
+                    // Make sure the instruction has a label number so it can be referenced.
+                    if (jump_byte.*.label_ref == null) {
+                        jump_byte.*.label_ref = label_count;
+                        label_count += 1;
+                    }
+                },
+                else => {},
+            }
+        }
+
+        current = node.next;
+    }
 }
 
 fn tagByte(allocator: Allocator, data: u8, tag: ByteType) !*Byte {
