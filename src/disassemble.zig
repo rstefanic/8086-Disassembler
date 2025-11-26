@@ -40,7 +40,7 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
         switch (instruction) {
             .mov => |mov| try handleMovInstruction(allocator, mov, binary, &code),
             .add => |add| try handleAddInstruction(allocator, add, binary, &code),
-            .addsubcmp => |asc| try handleAddSubCmpInstruction(allocator, asc, binary, &code),
+            .addsubcmpimm => |asc| try handleAddSubCmpImmToRegMemInstruction(allocator, asc, binary, &code),
             .je, .jl, .jle, .jb, .jbe, .jp, .jo, .js, .jnz, .jnl, .jnle, .jnb, .jnbe, .jnp, .jno, .jns, .loop, .loopz, .loopnz, .jcxz => try handleJmpInstruction(allocator, binary, &code),
         }
     }
@@ -93,9 +93,9 @@ fn handleAddInstruction(allocator: Allocator, add: Instructions.Add, binary: *Bi
     }
 }
 
-fn handleAddSubCmpInstruction(allocator: Allocator, asc: Instructions.AddSubCmp, binary: *Binary, code: *DoublyLinkedList) !void {
-    const w_flag = asc.ImmToRegMem.w;
-    const s_flag = asc.ImmToRegMem.s;
+fn handleAddSubCmpImmToRegMemInstruction(allocator: Allocator, asc: Instructions.AddSubCmpImmToRegMem, binary: *Binary, code: *DoublyLinkedList) !void {
+    const w_flag = asc.w;
+    const s_flag = asc.s;
     try tagBytesImmToRegMem(allocator, binary, code, w_flag, s_flag);
 }
 

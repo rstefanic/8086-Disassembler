@@ -25,7 +25,7 @@ pub fn emit(self: *const Disassemble, stdout: *std.Io.Writer) !void {
         const count = switch (instruction) {
             .mov => |mov| try parseMov(mov, node, stdout),
             .add => |add| try parseAdd(add, node, stdout),
-            .addsubcmp => |asc| try parseAddSubCmp(asc, node, stdout),
+            .addsubcmpimm => |asc| try parseAddSubCmpImmToRegMem(asc, node, stdout),
             .je => try parseJe(node, stdout),
             .jl => try parseJl(node, stdout),
             .jle => try parseJle(node, stdout),
@@ -470,12 +470,12 @@ fn parseAdd(add: Instructions.Add, node: *DoublyLinkedList.Node, stdout: *std.Io
     return count;
 }
 
-fn parseAddSubCmp(asc: Instructions.AddSubCmp, node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
+fn parseAddSubCmpImmToRegMem(asc: Instructions.AddSubCmpImmToRegMem, node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     var count: usize = 0;
     var current = node;
 
-    const w_flag = asc.ImmToRegMem.w;
-    const s_flag = asc.ImmToRegMem.w;
+    const w_flag = asc.w;
+    const s_flag = asc.s;
 
     const mod_reg_rm_byte = try getNextByte(&current);
     const mod_reg_rm: Binary.ModeRegRm = @bitCast(mod_reg_rm_byte.data);
