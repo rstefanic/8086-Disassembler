@@ -188,11 +188,15 @@ fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinke
             code.append(&data_lo.node);
 
             if (s_flag) |s| {
-                if (!s and w_flag) {
-                    const data_hi_val = try binary.next();
-                    const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
-                    code.append(&data_hi.node);
+                if (s) {
+                    return;
                 }
+            }
+
+            if (w_flag) {
+                const data_hi_val = try binary.next();
+                const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
+                code.append(&data_hi.node);
             }
         },
         Binary.Mode.Memory8BitDisplacement => {
@@ -205,11 +209,15 @@ fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinke
             code.append(&data_lo.node);
 
             if (s_flag) |s| {
-                if (!s and w_flag) {
-                    const data_hi_val = try binary.next();
-                    const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
-                    code.append(&data_hi.node);
+                if (s) {
+                    return;
                 }
+            }
+
+            if (w_flag) {
+                const data_hi_val = try binary.next();
+                const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
+                code.append(&data_hi.node);
             }
         },
         Binary.Mode.Memory16BitDisplacement => {
@@ -227,11 +235,15 @@ fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinke
             code.append(&data_lo.node);
 
             if (s_flag) |s| {
-                if (!s and w_flag) {
-                    const data_hi_val = try binary.next();
-                    const data_hi = try tagByte(allocator, data_hi_val, .DispHi);
-                    code.append(&data_hi.node);
+                if (s) {
+                    return;
                 }
+            }
+
+            if (w_flag) {
+                const data_hi_val = try binary.next();
+                const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
+                code.append(&data_hi.node);
             }
         },
         Binary.Mode.Register => {
