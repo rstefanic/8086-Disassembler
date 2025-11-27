@@ -25,10 +25,7 @@ pub const Mov = union(MovSubtype) {
 pub const RegMemWithRegToEither = struct { d: bool, w: bool };
 pub const ImmToAcc = struct { w: bool };
 
-pub const AddSubCmpImmToRegMem =  struct {
-     s: bool,
-     w: bool
-};
+pub const AddSubCmpImmToRegMem = struct { s: bool, w: bool };
 
 const InstructionType = enum {
     mov,
@@ -36,6 +33,8 @@ const InstructionType = enum {
     addimmacc,
     subregmemeither,
     subimmacc,
+    cmpregmemeither,
+    cmpimmacc,
     addsubcmpimm,
     je,
     jl,
@@ -65,6 +64,8 @@ pub const Instruction = union(InstructionType) {
     addimmacc: ImmToAcc,
     subregmemeither: RegMemWithRegToEither,
     subimmacc: ImmToAcc,
+    cmpregmemeither: RegMemWithRegToEither,
+    cmpimmacc: ImmToAcc,
     addsubcmpimm: AddSubCmpImmToRegMem,
     je,
     jl,
@@ -131,6 +132,17 @@ pub const Instruction = union(InstructionType) {
             0b00101100, 0b00101101 => immToAcc: {
                 const w = (byte & 0b00000001) > 0;
                 break :immToAcc Instruction{ .subimmacc = .{ .w = w } };
+            },
+
+            // CMP
+            0b00111000...0b00111011 => regMemWithRegToEither: {
+                const w = (byte & 0b00000001) > 0;
+                const d = (byte & 0b00000010) > 0;
+                break :regMemWithRegToEither Instruction{ .cmpregmemeither = RegMemWithRegToEither{ .d = d, .w = w } };
+            },
+            0b00111100, 0b00111101 => immToAcc: {
+                const w = (byte & 0b00000001) > 0;
+                break :immToAcc Instruction{ .cmpimmacc = .{ .w = w } };
             },
 
             // ADD/SUB/CMP Imm to Reg Mem

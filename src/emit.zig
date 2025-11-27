@@ -28,6 +28,8 @@ pub fn emit(self: *const Disassemble, stdout: *std.Io.Writer) !void {
             .addimmacc => |imm| try parseImmediateToAcc(imm, "add", node, stdout),
             .subregmemeither => |regmem| try parseRegMemWithRegToEither(regmem, "sub", node, stdout),
             .subimmacc => |imm| try parseImmediateToAcc(imm, "sub", node, stdout),
+            .cmpregmemeither => |regmem| try parseRegMemWithRegToEither(regmem, "cmp", node, stdout),
+            .cmpimmacc => |imm| try parseImmediateToAcc(imm, "cmp", node, stdout),
             .addsubcmpimm => |asc| try parseAddSubCmpImmToRegMem(asc, node, stdout),
             .je => try parseJe(node, stdout),
             .jl => try parseJl(node, stdout),
@@ -441,7 +443,7 @@ fn parseRegMemWithRegToEither(regmem: Instructions.RegMemWithRegToEither, mnemon
                 try writeEffectiveAddress(stdout, mod_reg_rm.rm);
                 try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
             }
-        }
+        },
     }
 
     return count;
@@ -475,7 +477,6 @@ fn parseImmediateToAcc(imm_to_acc: Instructions.ImmToAcc, mnemonic: []const u8, 
     return count;
 }
 
-
 fn parseAddSubCmpImmToRegMem(asc: Instructions.AddSubCmpImmToRegMem, node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     var count: usize = 0;
     var current = node;
@@ -491,6 +492,8 @@ fn parseAddSubCmpImmToRegMem(asc: Instructions.AddSubCmpImmToRegMem, node: *Doub
         try stdout.print("add ", .{});
     } else if (mod_reg_rm.reg == 0b101) {
         try stdout.print("sub ", .{});
+    } else if (mod_reg_rm.reg == 0b111) {
+        try stdout.print("cmp ", .{});
     }
 
     switch (mod_reg_rm.mode) {
