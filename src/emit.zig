@@ -518,29 +518,26 @@ fn parseAddSubCmpImmToRegMem(asc: Instructions.AddSubCmpImmToRegMem, node: *Doub
             try stdout.print("{s}, {d}\n", .{ register.emit(), immediate });
         },
         Binary.Mode.MemoryNoDisplacement => {
-            if (!s_flag and w_flag) {
-                const disp_lo_byte = try getNextByte(&current);
-                const disp_lo = disp_lo_byte.data;
+            const immediate = immediate: {
+                const data_lo_byte = try getNextByte(&current);
+                const data_lo = data_lo_byte.data;
                 count += 1;
 
-                const disp_hi_byte = try getNextByte(&current);
-                const disp_hi: u16 = disp_hi_byte.data;
+                if (s_flag or !w_flag) {
+                    break :immediate data_lo;
+                }
+
+                const data_hi_byte = try getNextByte(&current);
+                const data_hi: u16 = data_hi_byte.data;
                 count += 1;
 
-                const displacement = (disp_hi << 8) | disp_lo;
+                break :immediate (data_hi << 8) | data_lo;
+            };
+            const size_keyword: *const [4:0]u8 = if (w_flag) "word" else "byte";
 
-                try stdout.print("word [", .{});
-                try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                try stdout.print("], {d}\n", .{displacement});
-            } else {
-                const disp_lo_byte = try getNextByte(&current);
-                const disp_lo = disp_lo_byte.data;
-                count += 1;
-
-                try stdout.print("byte [", .{});
-                try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                try stdout.print("], {d}\n", .{disp_lo});
-            }
+            try stdout.print("{s} [", .{size_keyword});
+            try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+            try stdout.print("], {d}\n", .{immediate});
         },
         Binary.Mode.Memory8BitDisplacement => {
             const disp_lo_byte = try getNextByte(&current);
