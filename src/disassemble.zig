@@ -70,8 +70,7 @@ fn handleMovInstruction(allocator: Allocator, mov: Instructions.Mov, binary: *Bi
             try tagBytesModRegRmWithDisp(allocator, binary, code);
         },
         .ImmToRegMem => |*m| {
-            const w_flag = m.*.w;
-            try tagBytesImmToRegMem(allocator, binary, code, w_flag, null);
+            try tagBytesImmToRegMem(allocator, binary, code, m.*.w, null);
         },
         .ImmToReg => |*m| {
             try tagBytesData(allocator, binary, code, m.*.w, null);
@@ -86,9 +85,7 @@ fn handleMovInstruction(allocator: Allocator, mov: Instructions.Mov, binary: *Bi
 }
 
 fn handleAddSubCmpImmToRegMemInstruction(allocator: Allocator, asc: Instructions.AddSubCmpImmToRegMem, binary: *Binary, code: *DoublyLinkedList) !void {
-    const w_flag = asc.w;
-    const s_flag = asc.s;
-    try tagBytesImmToRegMem(allocator, binary, code, w_flag, s_flag);
+    try tagBytesImmToRegMem(allocator, binary, code, asc.w, asc.s);
 }
 
 fn handleJmpInstruction(allocator: Allocator, binary: *Binary, code: *DoublyLinkedList) !void {
@@ -189,15 +186,11 @@ fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinke
             code.append(&data_lo.node);
 
             if (s_flag) |s| {
-                if (s == true) {
-                    return;
+                if (!s and w_flag) {
+                    const data_hi_val = try binary.next();
+                    const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
+                    code.append(&data_hi.node);
                 }
-            }
-
-            if (w_flag) {
-                const data_hi_val = try binary.next();
-                const data_hi = try tagByte(allocator, data_hi_val, .DataHi);
-                code.append(&data_hi.node);
             }
         },
         Binary.Mode.Memory8BitDisplacement => {
