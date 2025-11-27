@@ -183,6 +183,18 @@ fn tagBytesImmToRegMem(allocator: Allocator, binary: *Binary, code: *DoublyLinke
 
     switch (mod_reg_rm.mode) {
         Binary.Mode.MemoryNoDisplacement => {
+            // Handle the special case when there IS a displacement
+            // when the MODE is set to "No Displacement".
+            if (mod_reg_rm.rm == 0b110) {
+                const disp_lo_val = try binary.next();
+                const disp_lo = try tagByte(allocator, disp_lo_val, .DispLo);
+                code.append(&disp_lo.node);
+
+                const disp_hi_val = try binary.next();
+                const disp_hi = try tagByte(allocator, disp_hi_val, .DispHi);
+                code.append(&disp_hi.node);
+            }
+
             const data_lo_val = try binary.next();
             const data_lo = try tagByte(allocator, data_lo_val, .DataLo);
             code.append(&data_lo.node);

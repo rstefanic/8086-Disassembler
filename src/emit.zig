@@ -518,26 +518,58 @@ fn parseAddSubCmpImmToRegMem(asc: Instructions.AddSubCmpImmToRegMem, node: *Doub
             try stdout.print("{s}, {d}\n", .{ register.emit(), immediate });
         },
         Binary.Mode.MemoryNoDisplacement => {
-            const immediate = immediate: {
-                const data_lo_byte = try getNextByte(&current);
-                const data_lo = data_lo_byte.data;
+            // Handle the special case when there IS a displacement
+            // when the MODE is set to "No Displacement".
+            if (mod_reg_rm.rm == 0b110) {
+                const disp_lo_byte = try getNextByte(&current);
+                const disp_lo = disp_lo_byte.data;
                 count += 1;
 
-                if (s_flag or !w_flag) {
-                    break :immediate data_lo;
-                }
-
-                const data_hi_byte = try getNextByte(&current);
-                const data_hi: u16 = data_hi_byte.data;
+                const disp_hi_byte = try getNextByte(&current);
+                const disp_hi: u16 = disp_hi_byte.data;
                 count += 1;
 
-                break :immediate (data_hi << 8) | data_lo;
-            };
-            const size_keyword: *const [4:0]u8 = if (w_flag) "word" else "byte";
+                const addr = (disp_hi << 8) | disp_lo;
 
-            try stdout.print("{s} [", .{size_keyword});
-            try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-            try stdout.print("], {d}\n", .{immediate});
+                const immediate = immediate: {
+                    const data_lo_byte = try getNextByte(&current);
+                    const data_lo = data_lo_byte.data;
+                    count += 1;
+
+                    if (s_flag or !w_flag) {
+                        break :immediate data_lo;
+                    }
+
+                    const data_hi_byte = try getNextByte(&current);
+                    const data_hi: u16 = data_hi_byte.data;
+                    count += 1;
+
+                    break :immediate (data_hi << 8) | data_lo;
+                };
+                const size_keyword: *const [4:0]u8 = if (w_flag) "word" else "byte";
+                try stdout.print("{s} [{d}], {d}\n", .{size_keyword, addr, immediate});
+            } else {
+                const immediate = immediate: {
+                    const data_lo_byte = try getNextByte(&current);
+                    const data_lo = data_lo_byte.data;
+                    count += 1;
+
+                    if (s_flag or !w_flag) {
+                        break :immediate data_lo;
+                    }
+
+                    const data_hi_byte = try getNextByte(&current);
+                    const data_hi: u16 = data_hi_byte.data;
+                    count += 1;
+
+                    break :immediate (data_hi << 8) | data_lo;
+                };
+                const size_keyword: *const [4:0]u8 = if (w_flag) "word" else "byte";
+
+                try stdout.print("{s} [", .{size_keyword});
+                try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                try stdout.print("], {d}\n", .{immediate});
+            }
         },
         Binary.Mode.Memory8BitDisplacement => {
             const disp_lo_byte = try getNextByte(&current);
