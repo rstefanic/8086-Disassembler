@@ -22,15 +22,8 @@ pub const Mov = union(MovSubtype) {
     // SegRegToRegMem: struct {},
 };
 
-const AddSubtype = enum {
-    RegMemWithRegToEither,
-    ImmToAcc,
-};
-
-pub const Add = union(AddSubtype) {
-    RegMemWithRegToEither: struct { d: bool, w: bool },
-    ImmToAcc: struct { w: bool },
-};
+pub const RegMemWithRegToEither = struct { d: bool, w: bool };
+pub const ImmToAcc = struct { w: bool };
 
 pub const AddSubCmpImmToRegMem =  struct {
      s: bool,
@@ -39,7 +32,8 @@ pub const AddSubCmpImmToRegMem =  struct {
 
 const InstructionType = enum {
     mov,
-    add,
+    addregmemeither,
+    addimmacc,
     addsubcmpimm,
     je,
     jl,
@@ -65,7 +59,8 @@ const InstructionType = enum {
 
 pub const Instruction = union(InstructionType) {
     mov: Mov,
-    add: Add,
+    addregmemeither: RegMemWithRegToEither,
+    addimmacc: ImmToAcc,
     addsubcmpimm: AddSubCmpImmToRegMem,
     je,
     jl,
@@ -116,11 +111,11 @@ pub const Instruction = union(InstructionType) {
             0b00000000...0b00000011 => regMemWithRegToEither: {
                 const w = (byte & 0b00000001) > 0;
                 const d = (byte & 0b00000010) > 0;
-                break :regMemWithRegToEither Instruction{ .add = Add{ .RegMemWithRegToEither = .{ .d = d, .w = w } } };
+                break :regMemWithRegToEither Instruction{ .addregmemeither = RegMemWithRegToEither{ .d = d, .w = w } };
             },
             0b00000100, 0b00000101 => immToAcc: {
                 const w = (byte & 0b00000001) > 0;
-                break :immToAcc Instruction{ .add = Add{ .ImmToAcc = .{ .w = w } } };
+                break :immToAcc Instruction{ .addimmacc = .{ .w = w } };
             },
 
             // ADD/SUB/CMP Imm to Reg Mem

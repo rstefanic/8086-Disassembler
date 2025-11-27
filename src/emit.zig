@@ -24,7 +24,8 @@ pub fn emit(self: *const Disassemble, stdout: *std.Io.Writer) !void {
         const instruction = Instructions.Instruction.make(byte.data);
         const count = switch (instruction) {
             .mov => |mov| try parseMov(mov, node, stdout),
-            .add => |add| try parseAdd(add, node, stdout),
+            .addregmemeither => |regmem| try parseRegMemWithRegToEither(regmem, "add", node, stdout),
+            .addimmacc => |imm| try parseImmediateToAcc(imm, "add", node, stdout),
             .addsubcmpimm => |asc| try parseAddSubCmpImmToRegMem(asc, node, stdout),
             .je => try parseJe(node, stdout),
             .jl => try parseJl(node, stdout),
@@ -342,133 +343,136 @@ fn parseMov(mov: Instructions.Mov, node: *DoublyLinkedList.Node, stdout: *std.Io
     return count;
 }
 
-fn parseAdd(add: Instructions.Add, node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
+fn parseRegMemWithRegToEither(regmem: Instructions.RegMemWithRegToEither, mnemonic: []const u8, node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     var count: usize = 0;
     var current = node;
 
-    switch (add) {
-        .RegMemWithRegToEither => |a| {
-            const w_flag = a.w;
-            const d_flag = a.d;
+    const w_flag = regmem.w;
+    const d_flag = regmem.d;
 
-            const mod_reg_rm_byte = try getNextByte(&current);
-            const mod_reg_rm: Binary.ModeRegRm = @bitCast(mod_reg_rm_byte.data);
-            count += 1;
+    const mod_reg_rm_byte = try getNextByte(&current);
+    const mod_reg_rm: Binary.ModeRegRm = @bitCast(mod_reg_rm_byte.data);
+    count += 1;
 
-            try stdout.print("add ", .{});
-            switch (mod_reg_rm.mode) {
-                Binary.Mode.Register => {
-                    const operand_one = Register.make(mod_reg_rm.reg, w_flag);
-                    const operand_two = Register.make(mod_reg_rm.rm, w_flag);
-                    try stdout.print("{s}, {s}\n", .{ operand_two.emit(), operand_one.emit() });
-                },
-                Binary.Mode.MemoryNoDisplacement => {
-                    const register = Register.make(mod_reg_rm.reg, w_flag).emit();
+    try stdout.print("{s} ", .{mnemonic});
+    switch (mod_reg_rm.mode) {
+        Binary.Mode.Register => {
+            const operand_one = Register.make(mod_reg_rm.reg, w_flag);
+            const operand_two = Register.make(mod_reg_rm.rm, w_flag);
+            try stdout.print("{s}, {s}\n", .{ operand_two.emit(), operand_one.emit() });
+        },
+        Binary.Mode.MemoryNoDisplacement => {
+            const register = Register.make(mod_reg_rm.reg, w_flag).emit();
 
-                    // Handle the special case when there IS a displacement
-                    // when the MODE is set to "No Displacement".
-                    if (mod_reg_rm.rm == 0b110) {
-                        const disp_lo_byte = try getNextByte(&current);
-                        const disp_lo = disp_lo_byte.data;
-                        count += 1;
+            // Handle the special case when there IS a displacement
+            // when the MODE is set to "No Displacement".
+            if (mod_reg_rm.rm == 0b110) {
+                const disp_lo_byte = try getNextByte(&current);
+                const disp_lo = disp_lo_byte.data;
+                count += 1;
 
-                        const disp_hi_byte = try getNextByte(&current);
-                        const disp_hi: u16 = disp_hi_byte.data;
-                        count += 1;
+                const disp_hi_byte = try getNextByte(&current);
+                const disp_hi: u16 = disp_hi_byte.data;
+                count += 1;
 
-                        const addr = (disp_hi << 8) | disp_lo;
-                        try stdout.print("{s}, [{d}]\n", .{ register, addr });
-                    } else {
-                        if (d_flag) {
-                            try stdout.print("{s}, [", .{register});
-                            try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                            try stdout.print("]\n", .{});
-                        } else {
-                            try stdout.print("[", .{});
-                            try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                            try stdout.print("], {s}\n", .{register});
-                        }
-                    }
-                },
-                Binary.Mode.Memory8BitDisplacement => {
-                    const disp_lo_byte = try getNextByte(&current);
-                    const disp_lo = disp_lo_byte.data;
-                    count += 1;
-
-                    // 8 bit displacement allows for the displacement to be
-                    // signed. It does this by performing sign extension
-                    // on the byte and using that as the displacement value.
-                    const msb_set = (0b1000_0000 & disp_lo) == 0b1000_0000;
-                    const disp_hi: u16 =
-                        if (msb_set)
-                            0b1111_1111_0000_0000
-                        else
-                            0b0000_0000_0000_0000;
-                    const displacement: i16 = @bitCast(disp_hi | disp_lo);
-                    const op: u8 = if (displacement >= 0) '+' else '-';
-                    const register = Register.make(mod_reg_rm.reg, w_flag).emit();
-
-                    if (d_flag) {
-                        try stdout.print("{s}, [", .{register});
-                        try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                        try stdout.print(" {c} {d}]\n", .{ op, @abs(displacement) });
-                    } else {
-                        try stdout.print("[", .{});
-                        try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                        try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
-                    }
-                },
-                Binary.Mode.Memory16BitDisplacement => {
-                    const disp_lo_byte = try getNextByte(&current);
-                    const disp_lo = disp_lo_byte.data;
-                    count += 1;
-
-                    const disp_hi_byte = try getNextByte(&current);
-                    const disp_hi: u16 = disp_hi_byte.data;
-                    count += 1;
-
-                    const displacement: i16 = @bitCast((disp_hi << 8) | disp_lo);
-                    const op: u8 = if (displacement >= 0) '+' else '-';
-                    const register = Register.make(mod_reg_rm.reg, w_flag).emit();
-
-                    if (d_flag) {
-                        try stdout.print("{s}, [", .{register});
-                        try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                        try stdout.print(" {c} {d}]\n", .{ op, @abs(displacement) });
-                    } else {
-                        try stdout.print("[", .{});
-                        try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                        try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
-                    }
-                },
+                const addr = (disp_hi << 8) | disp_lo;
+                try stdout.print("{s}, [{d}]\n", .{ register, addr });
+            } else {
+                if (d_flag) {
+                    try stdout.print("{s}, [", .{register});
+                    try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                    try stdout.print("]\n", .{});
+                } else {
+                    try stdout.print("[", .{});
+                    try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                    try stdout.print("], {s}\n", .{register});
+                }
             }
         },
-        .ImmToAcc => |a| {
-            const w_flag = a.w;
+        Binary.Mode.Memory8BitDisplacement => {
+            const disp_lo_byte = try getNextByte(&current);
+            const disp_lo = disp_lo_byte.data;
+            count += 1;
 
-            const immediate = immediate: {
-                const data_lo_byte = try getNextByte(&current);
-                const data_lo = data_lo_byte.data;
-                count += 1;
+            // 8 bit displacement allows for the displacement to be
+            // signed. It does this by performing sign extension
+            // on the byte and using that as the displacement value.
+            const msb_set = (0b1000_0000 & disp_lo) == 0b1000_0000;
+            const disp_hi: u16 =
+                if (msb_set)
+                    0b1111_1111_0000_0000
+                else
+                    0b0000_0000_0000_0000;
+            const displacement: i16 = @bitCast(disp_hi | disp_lo);
+            const op: u8 = if (displacement >= 0) '+' else '-';
+            const register = Register.make(mod_reg_rm.reg, w_flag).emit();
 
-                if (!w_flag) {
-                    break :immediate data_lo;
-                }
-
-                const data_hi_byte = try getNextByte(&current);
-                const data_hi: u16 = data_hi_byte.data;
-                count += 1;
-
-                break :immediate (data_hi << 8) | data_lo;
-            };
-
-            const register = if (w_flag) Register.AX else Register.AL;
-            try stdout.print("add {s}, {d}\n", .{ register.emit(), immediate });
+            if (d_flag) {
+                try stdout.print("{s}, [", .{register});
+                try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                try stdout.print(" {c} {d}]\n", .{ op, @abs(displacement) });
+            } else {
+                try stdout.print("[", .{});
+                try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
+            }
         },
+        Binary.Mode.Memory16BitDisplacement => {
+            const disp_lo_byte = try getNextByte(&current);
+            const disp_lo = disp_lo_byte.data;
+            count += 1;
+
+            const disp_hi_byte = try getNextByte(&current);
+            const disp_hi: u16 = disp_hi_byte.data;
+            count += 1;
+
+            const displacement: i16 = @bitCast((disp_hi << 8) | disp_lo);
+            const op: u8 = if (displacement >= 0) '+' else '-';
+            const register = Register.make(mod_reg_rm.reg, w_flag).emit();
+
+            if (d_flag) {
+                try stdout.print("{s}, [", .{register});
+                try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                try stdout.print(" {c} {d}]\n", .{ op, @abs(displacement) });
+            } else {
+                try stdout.print("[", .{});
+                try writeEffectiveAddress(stdout, mod_reg_rm.rm);
+                try stdout.print(" {c} {d}], {s}\n", .{ op, @abs(displacement), register });
+            }
+        }
     }
 
     return count;
 }
+
+fn parseImmediateToAcc(imm_to_acc: Instructions.ImmToAcc, mnemonic: []const u8, node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
+    var count: usize = 0;
+    var current = node;
+
+    const w_flag = imm_to_acc.w;
+
+    const immediate = immediate: {
+        const data_lo_byte = try getNextByte(&current);
+        const data_lo = data_lo_byte.data;
+        count += 1;
+
+        if (!w_flag) {
+            break :immediate data_lo;
+        }
+
+        const data_hi_byte = try getNextByte(&current);
+        const data_hi: u16 = data_hi_byte.data;
+        count += 1;
+
+        break :immediate (data_hi << 8) | data_lo;
+    };
+
+    const register = if (w_flag) Register.AX else Register.AL;
+    try stdout.print("{s} {s}, {d}\n", .{ mnemonic, register.emit(), immediate });
+
+    return count;
+}
+
 
 fn parseAddSubCmpImmToRegMem(asc: Instructions.AddSubCmpImmToRegMem, node: *DoublyLinkedList.Node, stdout: *std.Io.Writer) !usize {
     var count: usize = 0;

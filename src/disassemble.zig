@@ -39,7 +39,8 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
 
         switch (instruction) {
             .mov => |mov| try handleMovInstruction(allocator, mov, binary, &code),
-            .add => |add| try handleAddInstruction(allocator, add, binary, &code),
+            .addregmemeither => try tagBytesModRegRmWithDisp(allocator, binary, &code),
+            .addimmacc => |add| try tagBytesData(allocator, binary, &code, add.w, null),
             .addsubcmpimm => |asc| try handleAddSubCmpImmToRegMemInstruction(allocator, asc, binary, &code),
             .je, .jl, .jle, .jb, .jbe, .jp, .jo, .js, .jnz, .jnl, .jnle, .jnb, .jnbe, .jnp, .jno, .jns, .loop, .loopz, .loopnz, .jcxz => try handleJmpInstruction(allocator, binary, &code),
         }
@@ -78,17 +79,6 @@ fn handleMovInstruction(allocator: Allocator, mov: Instructions.Mov, binary: *Bi
         },
         .MemToAcc => |*m| {
             try tagBytesData(allocator, binary, code, m.*.w, null);
-        },
-    }
-}
-
-fn handleAddInstruction(allocator: Allocator, add: Instructions.Add, binary: *Binary, code: *DoublyLinkedList) !void {
-    switch (add) {
-        .RegMemWithRegToEither => {
-            try tagBytesModRegRmWithDisp(allocator, binary, code);
-        },
-        .ImmToAcc => |*a| {
-            try tagBytesData(allocator, binary, code, a.*.w, null);
         },
     }
 }
