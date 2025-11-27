@@ -41,6 +41,8 @@ pub fn init(allocator: Allocator, binary: *Binary) !Disassemble {
             .mov => |mov| try handleMovInstruction(allocator, mov, binary, &code),
             .addregmemeither => try tagBytesModRegRmWithDisp(allocator, binary, &code),
             .addimmacc => |add| try tagBytesData(allocator, binary, &code, add.w, null),
+            .subregmemeither => try tagBytesModRegRmWithDisp(allocator, binary, &code),
+            .subimmacc => |sub| try tagBytesData(allocator, binary, &code, sub.w, null),
             .addsubcmpimm => |asc| try handleAddSubCmpImmToRegMemInstruction(allocator, asc, binary, &code),
             .je, .jl, .jle, .jb, .jbe, .jp, .jo, .js, .jnz, .jnl, .jnle, .jnb, .jnbe, .jnp, .jno, .jns, .loop, .loopz, .loopnz, .jcxz => try handleJmpInstruction(allocator, binary, &code),
         }

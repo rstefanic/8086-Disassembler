@@ -26,6 +26,8 @@ pub fn emit(self: *const Disassemble, stdout: *std.Io.Writer) !void {
             .mov => |mov| try parseMov(mov, node, stdout),
             .addregmemeither => |regmem| try parseRegMemWithRegToEither(regmem, "add", node, stdout),
             .addimmacc => |imm| try parseImmediateToAcc(imm, "add", node, stdout),
+            .subregmemeither => |regmem| try parseRegMemWithRegToEither(regmem, "sub", node, stdout),
+            .subimmacc => |imm| try parseImmediateToAcc(imm, "sub", node, stdout),
             .addsubcmpimm => |asc| try parseAddSubCmpImmToRegMem(asc, node, stdout),
             .je => try parseJe(node, stdout),
             .jl => try parseJl(node, stdout),

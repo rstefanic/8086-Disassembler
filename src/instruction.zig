@@ -34,6 +34,8 @@ const InstructionType = enum {
     mov,
     addregmemeither,
     addimmacc,
+    subregmemeither,
+    subimmacc,
     addsubcmpimm,
     je,
     jl,
@@ -61,6 +63,8 @@ pub const Instruction = union(InstructionType) {
     mov: Mov,
     addregmemeither: RegMemWithRegToEither,
     addimmacc: ImmToAcc,
+    subregmemeither: RegMemWithRegToEither,
+    subimmacc: ImmToAcc,
     addsubcmpimm: AddSubCmpImmToRegMem,
     je,
     jl,
@@ -116,6 +120,17 @@ pub const Instruction = union(InstructionType) {
             0b00000100, 0b00000101 => immToAcc: {
                 const w = (byte & 0b00000001) > 0;
                 break :immToAcc Instruction{ .addimmacc = .{ .w = w } };
+            },
+
+            // SUB
+            0b00101000...0b00101011 => regMemWithRegToEither: {
+                const w = (byte & 0b00000001) > 0;
+                const d = (byte & 0b00000010) > 0;
+                break :regMemWithRegToEither Instruction{ .subregmemeither = RegMemWithRegToEither{ .d = d, .w = w } };
+            },
+            0b00101100, 0b00101101 => immToAcc: {
+                const w = (byte & 0b00000001) > 0;
+                break :immToAcc Instruction{ .subimmacc = .{ .w = w } };
             },
 
             // ADD/SUB/CMP Imm to Reg Mem
