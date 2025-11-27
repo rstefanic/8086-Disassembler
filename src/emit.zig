@@ -489,6 +489,8 @@ fn parseAddSubCmpImmToRegMem(asc: Instructions.AddSubCmpImmToRegMem, node: *Doub
 
     if (mod_reg_rm.reg == 0b000) {
         try stdout.print("add ", .{});
+    } else if (mod_reg_rm.reg == 0b101) {
+        try stdout.print("sub ", .{});
     }
 
     switch (mod_reg_rm.mode) {
@@ -513,7 +515,7 @@ fn parseAddSubCmpImmToRegMem(asc: Instructions.AddSubCmpImmToRegMem, node: *Doub
             try stdout.print("{s}, {d}\n", .{ register.emit(), immediate });
         },
         Binary.Mode.MemoryNoDisplacement => {
-            if (w_flag) {
+            if (!s_flag and w_flag) {
                 const disp_lo_byte = try getNextByte(&current);
                 const disp_lo = disp_lo_byte.data;
                 count += 1;
@@ -524,9 +526,9 @@ fn parseAddSubCmpImmToRegMem(asc: Instructions.AddSubCmpImmToRegMem, node: *Doub
 
                 const displacement = (disp_hi << 8) | disp_lo;
 
-                try stdout.print("[", .{});
+                try stdout.print("word [", .{});
                 try writeEffectiveAddress(stdout, mod_reg_rm.rm);
-                try stdout.print("], word {d}\n", .{displacement});
+                try stdout.print("], {d}\n", .{displacement});
             } else {
                 const disp_lo_byte = try getNextByte(&current);
                 const disp_lo = disp_lo_byte.data;
